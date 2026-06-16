@@ -106,6 +106,7 @@
   table.dayoff th,table.dayoff td{text-align:center;padding:4px 5px;border:1px solid var(--line);font-size:12px;white-space:nowrap}
   table.dayoff thead th{background:#f8fafc}
   table.dayoff td:first-child,table.dayoff th:first-child{text-align:left;position:sticky;left:0;background:#fff;z-index:1;min-width:120px}
+  table.dayoff .dt{font-size:10px;color:var(--muted);font-weight:500}
   .off-btn{width:28px;height:24px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;font-size:11px;color:#cbd5e1}
   .off-btn:hover{border-color:var(--warn)}
   .off-btn.on{background:var(--warn);border-color:var(--warn);color:#fff;font-weight:700}
@@ -740,7 +741,7 @@ function renderDaysOff(){
   let h='<table class="list dayoff"><thead><tr><th>護理師</th>';
   for(let w=0;w<WEEKS;w++) h+=`<th colspan="${DAYS.length}">第${w+1}週</th>`;
   h+='</tr><tr><th></th>';
-  for(let w=0;w<WEEKS;w++) DAYS.forEach(d=> h+=`<th>${d.label.replace('週','')}</th>`);
+  for(let w=0;w<WEEKS;w++) DAYS.forEach((d,di)=>{ const dt=dateFor(w,di); h+=`<th>${d.label.replace('週','')}${dt?`<br><span class="dt">${dt}</span>`:''}</th>`; });
   h+='</tr></thead><tbody>';
   state.nurses.forEach(n=>{
     h+=`<tr><td><span class="codechip nur">${esc(n.code)}</span> ${esc(n.name||'')}</td>`;
@@ -848,7 +849,7 @@ function bind(){
   });
   const numHandler=(id,fld)=>{ document.getElementById(id).addEventListener('input',e=>{ state[fld]=Math.max(0,parseInt(e.target.value||'0',10)); save(); refreshValidation(); }); };
   numHandler('nurseMax','nurseMaxHours'); numHandler('doctorMax','doctorMaxHours');
-  document.getElementById('startDate').addEventListener('change',e=>{ state.startDate=e.target.value; save(); renderGrid(); renderPrintArea(); });
+  document.getElementById('startDate').addEventListener('change',e=>{ state.startDate=e.target.value; save(); renderGrid(); renderDaysOff(); renderPrintArea(); });
   // 排休：點格切換
   document.getElementById('dayoffHost').addEventListener('click',e=>{
     const b=e.target.closest('.off-btn'); if(!b) return;
