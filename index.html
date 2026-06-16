@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>診所排班系統</title>
+<style>
+  :root{
+    --bg:#f1f5f9; --panel:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
+    --brand:#0d9488; --brand-d:#0f766e; --brand-l:#ccfbf1;
+    --err:#dc2626; --err-bg:#fef2f2; --warn:#d97706; --warn-bg:#fffbeb; --ok:#16a34a;
+    --doc:#1d4ed8; --nur:#9333ea;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+    background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5}
+  header{background:linear-gradient(135deg,var(--brand),var(--brand-d));color:#fff;padding:14px 20px;
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.5px}
+  header .sub{font-size:12px;opacity:.85}
+  header .save-state{margin-left:auto;font-size:12px;opacity:.9}
+  nav{display:flex;gap:2px;background:var(--brand-d);padding:0 12px;flex-wrap:wrap}
+  nav button{background:transparent;border:0;color:#cdeee9;padding:11px 18px;font-size:14px;cursor:pointer;
+    border-bottom:3px solid transparent;font-weight:600}
+  nav button:hover{color:#fff}
+  nav button.active{color:#fff;border-bottom-color:#fff;background:rgba(255,255,255,.08)}
+  main{padding:18px;max-width:1180px;margin:0 auto}
+  section{display:none}
+  section.active{display:block}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px;
+    box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .card h2{margin:0 0 4px;font-size:16px}
+  .card .hint{color:var(--muted);font-size:12.5px;margin:0 0 14px}
+  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .toolbar .spacer{flex:1}
+  .wk-tabs{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
+  .wk-tabs button{border:0;background:#fff;padding:8px 15px;cursor:pointer;font-weight:600;color:var(--muted);border-right:1px solid var(--line)}
+  .wk-tabs button:last-child{border-right:0}
+  .wk-tabs button.active{background:var(--brand);color:#fff}
+  button.btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 14px;cursor:pointer;font-weight:600;color:var(--ink)}
+  button.btn:hover{border-color:#cbd5e1;background:#f8fafc}
+  button.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+  button.btn.primary:hover{background:var(--brand-d)}
+  button.btn.danger{color:var(--err);border-color:#fecaca}
+  button.btn.danger:hover{background:var(--err-bg)}
+  button.btn.sm{padding:5px 10px;font-size:12.5px}
+
+  table{border-collapse:collapse;width:100%}
+  .grid-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px}
+  table.grid{min-width:760px}
+  table.grid th,table.grid td{border:1px solid var(--line);padding:0}
+  table.grid thead th{background:#f8fafc;padding:9px 6px;font-size:13px;position:sticky;top:0;z-index:2}
+  table.grid .col-time{width:78px}
+  table.grid td.day{background:#f1f5f9;font-weight:700;text-align:center;writing-mode:initial;width:52px;font-size:13px}
+  table.grid td.day .date{display:block;font-size:11px;color:var(--muted);font-weight:500;margin-top:2px}
+  table.grid td.shift{background:#fcfdff;font-weight:600;text-align:center;font-size:12.5px;width:74px}
+  table.grid td.shift .tm{display:block;font-size:10.5px;color:var(--muted);font-weight:500}
+  td.slot{padding:5px !important;vertical-align:top;min-width:150px}
+  td.slot.treat{background:#faf5ff}
+  .pick{display:flex;align-items:center;gap:5px;margin:2px 0}
+  .pick .lbl{font-size:11px;font-weight:700;width:18px;height:18px;line-height:18px;text-align:center;border-radius:5px;color:#fff;flex:none}
+  .pick .lbl.doc{background:var(--doc)}
+  .pick .lbl.nur{background:var(--nur)}
+  select.sel{flex:1;min-width:0;border:1px solid var(--line);border-radius:6px;padding:4px 4px;font-size:12.5px;background:#fff;color:var(--ink)}
+  select.sel:focus{outline:2px solid var(--brand-l);border-color:var(--brand)}
+  td.slot.cell-error{background:var(--err-bg) !important;outline:2px solid var(--err);outline-offset:-2px}
+  td.slot.cell-warn{background:var(--warn-bg) !important}
+
+  .summary{display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:12px 2px 0;font-size:13px}
+  .summary .pill{background:#f8fafc;border:1px solid var(--line);border-radius:20px;padding:4px 12px;font-weight:600}
+  .summary .pill b{color:var(--brand-d)}
+  .issues{margin-top:12px}
+  .issues .row{padding:7px 11px;border-radius:8px;margin-bottom:6px;font-size:13px;display:flex;gap:8px;align-items:flex-start}
+  .issues .row.error{background:var(--err-bg);color:#991b1b;border:1px solid #fecaca}
+  .issues .row.warn{background:var(--warn-bg);color:#92400e;border:1px solid #fde68a}
+  .issues .row.ok{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0}
+  .issues .ic{font-weight:800}
+
+  table.list{width:100%;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  table.list th,table.list td{border-bottom:1px solid var(--line);padding:9px 11px;text-align:left}
+  table.list th{background:#f8fafc;font-size:12.5px;color:var(--muted);font-weight:700}
+  table.list tr:last-child td{border-bottom:0}
+  table.list input.f{border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:13.5px;width:100%;max-width:260px}
+  table.list input.code{max-width:90px;font-weight:700;text-align:center}
+  .codechip{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 6px;
+    border-radius:7px;font-weight:800;color:#fff;font-size:13px}
+  .codechip.doc{background:var(--doc)}
+  .codechip.nur{background:var(--nur)}
+  .field{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+  .field label{font-weight:600;min-width:150px}
+  .field input[type=number],.field input[type=date]{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:14px;width:140px}
+  .field .unit{color:var(--muted)}
+  .excl-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+  .excl-row select{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13.5px;min-width:160px;background:#fff}
+  .excl-row .x{font-size:18px;color:var(--err);font-weight:800}
+
+  .bar{background:#eef2f6;border-radius:6px;height:18px;position:relative;overflow:hidden;min-width:120px}
+  .bar > span{display:block;height:100%;background:var(--brand);border-radius:6px}
+  .bar.warn > span{background:var(--warn)}
+  .bar.over > span{background:var(--err)}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .tag{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:20px}
+  .tag.ok{background:#f0fdf4;color:#166534}
+  .tag.warn{background:var(--warn-bg);color:#92400e}
+  .tag.over{background:var(--err-bg);color:#991b1b}
+  table.dayoff th,table.dayoff td{text-align:center;padding:4px 5px;border:1px solid var(--line);font-size:12px;white-space:nowrap}
+  table.dayoff thead th{background:#f8fafc}
+  table.dayoff td:first-child,table.dayoff th:first-child{text-align:left;position:sticky;left:0;background:#fff;z-index:1;min-width:120px}
+  .off-btn{width:28px;height:24px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;font-size:11px;color:#cbd5e1}
+  .off-btn:hover{border-color:var(--warn)}
+  .off-btn.on{background:var(--warn);border-color:var(--warn);color:#fff;font-weight:700}
+  .empty{color:var(--muted);text-align:center;padding:22px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .dot{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+  /* 列印區（全部 4 週靜態表） */
+  #printArea{display:none}
+  @media print{
+    header,nav,.toolbar,.no-print,.summary,.issues,.legend{display:none !important}
+    main{padding:0;max-width:none}
+    section{display:none !important}
+    #printArea{display:block !important}
+    body{background:#fff;font-size:11px}
+    #printArea table{border-collapse:collapse;width:100%;margin-bottom:14px}
+    #printArea th,#printArea td{border:1px solid #94a3b8;padding:3px 4px;text-align:center}
+    #printArea th{background:#e2e8f0}
+    #printArea h3{margin:0 0 6px;font-size:14px}
+    #printArea .pd{color:#475569}
+    @page{size:landscape;margin:10mm}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>診所排班系統</h1>
+    <div class="sub">週一～五 早/午/晚班 · 週六 早/午班 · 每班4小時 · 護理師每天最多兩班 · 1～3診＋治療室</div>
+  </div>
+  <div class="save-state" id="saveState">自動儲存於瀏覽器</div>
+</header>
+
+<nav id="tabs">
+  <button data-tab="schedule" class="active">排班表</button>
+  <button data-tab="staff">人員名單</button>
+  <button data-tab="rules">規則設定</button>
+  <button data-tab="dayoff">排休</button>
+  <button data-tab="stats">時數統計</button>
+  <button data-tab="data">資料備份</button>
+</nav>
+
+<main>
+  <!-- ============ 排班表 ============ -->
+  <section id="tab-schedule" class="active">
+    <div class="toolbar no-print">
+      <div class="wk-tabs" id="wkTabs"></div>
+      <div class="spacer"></div>
+      <button class="btn" id="btnCopyDoc">⧉ 醫師班表→全部4週</button>
+      <button class="btn primary" id="btnAuto">⚙️ 自動排護理師</button>
+      <button class="btn" id="btnClearNur">清空護理師</button>
+      <button class="btn danger" id="btnClearAll">清空全部</button>
+      <button class="btn" id="btnCsv">匯出 CSV</button>
+      <button class="btn" id="btnPrint">🖨 列印 / 存 PDF</button>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="grid-wrap"><div id="gridHost"></div></div>
+    </div>
+
+    <div class="summary" id="summary"></div>
+    <div class="legend no-print">
+      <span><i class="dot" style="background:var(--doc)"></i>醫師（開診）</span>
+      <span><i class="dot" style="background:var(--nur)"></i>護理師</span>
+      <span><i class="dot" style="background:var(--err)"></i>違規（紅框）</span>
+      <span><i class="dot" style="background:var(--warn)"></i>已開診、尚未排護理師</span>
+      <span style="color:#94a3b8">診間不放醫師＝該節休診可留空；治療室每節一定要有人</span>
+    </div>
+    <div class="issues" id="issues"></div>
+  </section>
+
+  <!-- ============ 人員名單 ============ -->
+  <section id="tab-staff">
+    <div class="card">
+      <h2>醫師名單 <span style="color:var(--doc)">（代號 A、B、C…）</span></h2>
+      <p class="hint">代號可自行修改（填字母或任何符號皆可），姓名之後對應。改代號後，排班表與規則會自動跟著更新。</p>
+      <table class="list" id="docTable"></table>
+      <div style="margin-top:10px"><button class="btn sm" id="addDoc">＋ 新增醫師</button></div>
+    </div>
+    <div class="card">
+      <h2>護理師名單 <span style="color:var(--nur)">（代號 a、b、c…）</span></h2>
+      <p class="hint">護理師有 4 週總時數上限（在「規則設定」調整，預設 160 小時）。</p>
+      <table class="list" id="nurTable"></table>
+      <div style="margin-top:10px"><button class="btn sm" id="addNur">＋ 新增護理師</button></div>
+    </div>
+  </section>
+
+  <!-- ============ 規則設定 ============ -->
+  <section id="tab-rules">
+    <div class="card">
+      <h2>不可同診配對</h2>
+      <p class="hint">設定「某醫師不能和某護理師排在同一診」。例如 A 不能跟 a 對上。自動排班會避開，手動排到也會標紅警告。</p>
+      <div id="exclList"></div>
+      <div class="excl-row" style="margin-top:10px">
+        <select id="exDoc"></select>
+        <span class="x">✕</span>
+        <select id="exNur"></select>
+        <button class="btn sm primary" id="addExcl">＋ 加入規則</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>時數與週期</h2>
+      <div class="field">
+        <label>護理師 4 週時數上限</label>
+        <input type="number" id="nurseMax" min="0" step="4"> <span class="unit">小時（預設 160）</span>
+      </div>
+      <div class="field">
+        <label>醫師 4 週時數上限</label>
+        <input type="number" id="doctorMax" min="0" step="4"> <span class="unit">小時（填 0＝不限制）</span>
+      </div>
+      <div class="field">
+        <label>週期起始日（週一）</label>
+        <input type="date" id="startDate"> <span class="unit">選填，填了排班表會顯示日期</span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>內建護理師規則（自動套用、無法關閉）</h2>
+      <ul style="margin:0;padding-left:20px;line-height:1.95;color:#334155">
+        <li>有上班的日子<b>盡量排兩班</b>（一天最多兩班、共 8 小時）；可 <b>早+午、午+晚、早+晚</b> 任意兩班，兩班可在不同診間或治療室。</li>
+        <li>標記<b>排休</b>的日子不會排班（在「排休」分頁設定）。</li>
+        <li>上了<b>晚班的隔天不排早班</b>（確保休息）。</li>
+        <li>診間沒有醫師＝該節休診，<b>不排護理師</b>；診間有醫師才會配護理師。</li>
+        <li><b>治療室每一節（有開診時）要有一位護理師。</b></li>
+        <li>同一位護理師同一節不會被排在兩個地方；4 週時數不超過上限。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ 排休 ============ -->
+  <section id="tab-dayoff">
+    <div class="card">
+      <h2>護理師排休（不上班的日子）</h2>
+      <p class="hint">點格子切換「休」。標記為休的日子：自動排班不會排、手動排到會標紅提醒。可左右捲動看 4 週。</p>
+      <div class="grid-wrap"><div id="dayoffHost"></div></div>
+    </div>
+  </section>
+
+  <!-- ============ 時數統計 ============ -->
+  <section id="tab-stats">
+    <div class="card">
+      <h2>護理師時數（4 週合計，上限 <span id="capLabel">160</span> 小時）</h2>
+      <p class="hint">超過上限會標紅；達 90% 以上標橘提醒。</p>
+      <table class="list" id="nurseStats"></table>
+    </div>
+    <div class="card">
+      <h2>醫師時數（4 週合計）</h2>
+      <table class="list" id="doctorStats"></table>
+    </div>
+  </section>
+
+  <!-- ============ 資料備份 ============ -->
+  <section id="tab-data">
+    <div class="card">
+      <h2>備份 / 還原</h2>
+      <p class="hint">資料平時自動存在這台電腦的瀏覽器裡。建議定期匯出一份備份檔保存；換電腦或清快取前也請先匯出。</p>
+      <div class="toolbar">
+        <button class="btn primary" id="btnExport">⬇ 匯出備份檔（.json）</button>
+        <button class="btn" id="btnImport">⬆ 匯入備份檔</button>
+        <input type="file" id="importFile" accept="application/json" style="display:none">
+      </div>
+      <p class="hint" id="dataInfo"></p>
+    </div>
+    <div class="card">
+      <h2>使用說明</h2>
+      <ol style="margin:0;padding-left:20px;line-height:2;color:#334155">
+        <li>先到「<b>人員名單</b>」填好醫師、護理師的代號與姓名。</li>
+        <li>到「<b>規則設定</b>」加入不可同診的配對，並確認護理師時數上限。</li>
+        <li>到「<b>排休</b>」勾選每位護理師不上班的日子。</li>
+        <li>回「<b>排班表</b>」：先在各診間放上<b>醫師</b>（決定每節開哪幾診）。每週門診若相同，排好第1週後按「<b>醫師班表→全部4週</b>」一鍵帶入。</li>
+        <li>按「<b>自動排護理師</b>」，系統會依醫師開診＋所有規則自動排護理師，再用下拉手動微調。</li>
+        <li>有違規時格子會變紅、下方列出原因；「<b>時數統計</b>」可看每人總時數。</li>
+        <li>完成後「<b>匯出 CSV</b>」或「<b>列印 / 存 PDF</b>」交付。</li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+<div id="printArea"></div>
+
+<script>
+"use strict";
+/* ---------------- 常數 ---------------- */
+const DAYS = [
+  {key:'mon',label:'週一'},{key:'tue',label:'週二'},{key:'wed',label:'週三'},
+  {key:'thu',label:'週四'},{key:'fri',label:'週五'},{key:'sat',label:'週六'}
+];
+const SHIFTS_WEEKDAY = [
+  {key:'m',label:'早班',time:'08:00–12:00'},
+  {key:'a',label:'午班',time:'13:00–17:00'},
+  {key:'e',label:'晚班',time:'18:00–22:00'}
+];
+const SHIFTS_SAT = [
+  {key:'m',label:'早班',time:'08:00–12:00'},
+  {key:'a',label:'午班',time:'13:00–17:00'}
+];
+const POSITIONS = [
+  {key:'c1',label:'1診',type:'clinic'},
+  {key:'c2',label:'2診',type:'clinic'},
+  {key:'c3',label:'3診',type:'clinic'},
+  {key:'t1',label:'治療室',type:'treatment'}
+];
+const SHIFT_HOURS = 4, WEEKS = 4, KEY = 'opd-scheduler-v1';
+const SHIFT_LABEL = {m:'早班',a:'午班',e:'晚班'};
+const shiftsForDay = d => d==='sat' ? SHIFTS_SAT : SHIFTS_WEEKDAY;
+const weekLabel = w => '第'+(w+1)+'週';
+const posLabel = k => (POSITIONS.find(p=>p.key===k)||{}).label || k;
+
+/* ---------------- 狀態 ---------------- */
+let state = null;
+let curWeek = 0;
+
+function defaultState(){
+  let seq = 1;
+  const mk = (code)=>({id:'s'+(seq++),code,name:''});
+  const docs = ['A','B','C','D','E'].map(mk);
+  const nurs = ['a','b','c','d','e','f','g','h'].map(mk);
+  nurs.forEach(n=>n.off=[]);
+  return {
+    seq,
+    doctors:docs,
+    nurses:nurs,
+    exclusions:[{doctorId:docs[0].id, nurseId:nurs[0].id}], // 範例：A ✕ a
+    nurseMaxHours:160,
+    doctorMaxHours:0,
+    startDate:'',
+    schedule:{}
+  };
+}
+function newId(){ return 's'+(state.seq++); }
+
+/* ---------------- 儲存 / 載入 ---------------- */
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(state)); flashSaved(); }
+  catch(e){ console.error(e); }
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw){ state = JSON.parse(raw); return; }
+  }catch(e){ console.error(e); }
+  state = defaultState();
+}
+let savedTimer=null;
+function flashSaved(){
+  const el=document.getElementById('saveState');
+  el.textContent='✓ 已儲存';
+  clearTimeout(savedTimer);
+  savedTimer=setTimeout(()=> el.textContent='自動儲存於瀏覽器',1200);
+}
+
+/* ---------------- 小工具 ---------------- */
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const docById = id => state.doctors.find(d=>d.id===id);
+const nurById = id => state.nurses.find(n=>n.id===id);
+function label(s){ return s ? (s.code + (s.name? ' '+s.name : '')) : ''; }
+function isOff(nurseId,w,dayKey){ const n=nurById(nurseId); return !!(n && n.off && n.off.indexOf(w+'|'+dayKey)>=0); }
+function ensureCell(w,day,sh,pos){
+  const S=state.schedule;
+  (S[w]=S[w]||{}); (S[w][day]=S[w][day]||{}); (S[w][day][sh]=S[w][day][sh]||{});
+  return (S[w][day][sh][pos]=S[w][day][sh][pos]||{doctorId:null,nurseId:null});
+}
+function getCell(w,day,sh,pos){
+  const S=state.schedule;
+  return (S[w]&&S[w][day]&&S[w][day][sh]&&S[w][day][sh][pos]) || null;
+}
+function dateFor(w,dayIndex){
+  if(!state.startDate) return '';
+  const d=new Date(state.startDate+'T00:00:00');
+  if(isNaN(d)) return '';
+  d.setDate(d.getDate()+w*7+dayIndex);
+  return (d.getMonth()+1)+'/'+d.getDate();
+}
+function eachSlot(cb){
+  for(let w=0;w<WEEKS;w++)
+    DAYS.forEach((day,di)=> shiftsForDay(day.key).forEach(sh=>
+      POSITIONS.forEach(pos=> cb(w,day,di,sh,pos))));
+}
+
+/* ---------------- 排班表渲染 ---------------- */
+function optionList(arr,sel){
+  let o='<option value="">—</option>';
+  arr.forEach(s=> o+=`<option value="${s.id}"${s.id===sel?' selected':''}>${esc(label(s))}</option>`);
+  return o;
+}
+function sel(role,w,day,sh,pos,val){
+  const arr = role==='doctor'?state.doctors:state.nurses;
+  return `<select class="sel" data-role="${role}" data-w="${w}" data-day="${day}" data-sh="${sh}" data-pos="${pos}">${optionList(arr,val)}</select>`;
+}
+function cellHtml(w,day,sh,pos){
+  const id=`c-${w}-${day}-${sh}-${pos.key}`;
+  const a=getCell(w,day,sh,pos.key)||{};
+  if(pos.type==='clinic'){
+    return `<td class="slot" id="${id}">
+      <div class="pick"><span class="lbl doc">醫</span>${sel('doctor',w,day,sh,pos.key,a.doctorId)}</div>
+      <div class="pick"><span class="lbl nur">護</span>${sel('nurse',w,day,sh,pos.key,a.nurseId)}</div></td>`;
+  }
+  return `<td class="slot treat" id="${id}">
+      <div class="pick"><span class="lbl nur">護</span>${sel('nurse',w,day,sh,pos.key,a.nurseId)}</div></td>`;
+}
+function renderGrid(){
+  const w=curWeek;
+  let h=`<table class="grid"><thead><tr><th style="width:52px">日</th><th class="col-time">時段</th>`;
+  POSITIONS.forEach(p=> h+=`<th>${p.label}</th>`);
+  h+=`</tr></thead><tbody>`;
+  DAYS.forEach((day,di)=>{
+    const shs=shiftsForDay(day.key);
+    shs.forEach((sh,si)=>{
+      h+='<tr>';
+      if(si===0){
+        const dt=dateFor(w,di);
+        h+=`<td class="day" rowspan="${shs.length}">${day.label}${dt?`<span class="date">${dt}</span>`:''}</td>`;
+      }
+      // 時段欄與診間欄
+      h+=`<td class="shift">${sh.label}<span class="tm">${sh.time}</span></td>`;
+      POSITIONS.forEach(pos=> h+=cellHtml(w,day.key,sh.key,pos));
+      h+='</tr>';
+    });
+  });
+  h+='</tbody></table>';
+  document.getElementById('gridHost').innerHTML=h;
+  refreshValidation();
+}
+
+/* ---------------- 週次頁籤 ---------------- */
+function renderWkTabs(){
+  let h='';
+  for(let w=0;w<WEEKS;w++) h+=`<button data-w="${w}"${w===curWeek?' class="active"':''}>${weekLabel(w)}</button>`;
+  document.getElementById('wkTabs').innerHTML=h;
+}
+
+/* ---------------- 驗證 ---------------- */
+function computeIssues(){
+  const errorCells=new Set(), warnCells=new Set(), messages=[];
+  const exSet=new Set(state.exclusions.map(e=>e.doctorId+'|'+e.nurseId));
+  const ckOf=(w,day,sh,pos)=>`c-${w}-${day}-${sh}-${pos}`;
+  const nurseDay={}; // nurseId|w|dayKey -> {shifts:Set, cells:{shiftKey:[ck]}}
+  for(let w=0;w<WEEKS;w++){
+    DAYS.forEach(day=>{
+      shiftsForDay(day.key).forEach(sh=>{
+        const docMap={}, nurMap={};
+        const shiftActive=['c1','c2','c3'].some(pk=>{ const a=getCell(w,day.key,sh.key,pk); return a&&a.doctorId; });
+        POSITIONS.forEach(pos=>{
+          const a=getCell(w,day.key,sh.key,pos.key)||{};
+          const ck=ckOf(w,day.key,sh.key,pos.key);
+          if(pos.type==='clinic'){
+            if(a.nurseId && !a.doctorId){ errorCells.add(ck);
+              messages.push({type:'error',text:`${weekLabel(w)} ${day.label}${sh.label} ${pos.label}：沒有醫師卻排了護理師 ${codeOf(a.nurseId)}`}); }
+            else if(a.doctorId && !a.nurseId){ warnCells.add(ck); }
+            if(a.doctorId && a.nurseId && exSet.has(a.doctorId+'|'+a.nurseId)){ errorCells.add(ck);
+              messages.push({type:'error',text:`${weekLabel(w)} ${day.label}${sh.label} ${pos.label}：${codeOf(a.doctorId)} 與 ${codeOf(a.nurseId)} 不可同診`}); }
+          } else { // 治療室：開診的節一定要有護理師
+            if(!a.nurseId && shiftActive){ errorCells.add(ck);
+              messages.push({type:'error',text:`${weekLabel(w)} ${day.label}${sh.label} 治療室：一定要有一位護理師`}); }
+          }
+          if(a.doctorId)(docMap[a.doctorId]=docMap[a.doctorId]||[]).push({ck,pos});
+          if(a.nurseId){
+            (nurMap[a.nurseId]=nurMap[a.nurseId]||[]).push({ck,pos});
+            const k=a.nurseId+'|'+w+'|'+day.key;
+            const nd=nurseDay[k]||(nurseDay[k]={shifts:new Set(),cells:{}});
+            nd.shifts.add(sh.key);
+            (nd.cells[sh.key]=nd.cells[sh.key]||[]).push(ck);
+          }
+        });
+        const dup=map=>Object.keys(map).forEach(id=>{ if(map[id].length>1){
+          map[id].forEach(x=>errorCells.add(x.ck));
+          messages.push({type:'error',text:`${weekLabel(w)} ${day.label}${sh.label}：${codeOf(id)} 同一節被排在 ${map[id].map(x=>x.pos.label).join('、')}（同一節不能在兩處）`}); } });
+        dup(docMap); dup(nurMap);
+      });
+    });
+  }
+  // 護理師：一天最多兩班；排休日不應排班
+  Object.keys(nurseDay).forEach(k=>{
+    const p=k.split('|'), nurseId=p[0], w=+p[1], dayKey=p[2];
+    const nd=nurseDay[k], dl=(DAYS.find(d=>d.key===dayKey)||{}).label;
+    if(nd.shifts.size>2){
+      Object.values(nd.cells).forEach(arr=>arr.forEach(ck=>errorCells.add(ck)));
+      messages.push({type:'error',text:`${weekLabel(w)} ${dl}：${codeOf(nurseId)} 一天排了 ${nd.shifts.size} 班（一天最多兩班）`});
+    }
+    if(isOff(nurseId,w,dayKey)){
+      Object.values(nd.cells).forEach(arr=>arr.forEach(ck=>errorCells.add(ck)));
+      messages.push({type:'error',text:`${weekLabel(w)} ${dl}：${codeOf(nurseId)} 當天已排休，不應排班`});
+    }
+  });
+  // 休息規則：上晚班的隔天不能接早班
+  state.nurses.forEach(n=>{
+    for(let w=0;w<WEEKS;w++) for(let d=0;d<DAYS.length-1;d++){
+      const td=nurseDay[n.id+'|'+w+'|'+DAYS[d].key], nx=nurseDay[n.id+'|'+w+'|'+DAYS[d+1].key];
+      if(td&&td.shifts.has('e') && nx&&nx.shifts.has('m')){
+        (nx.cells['m']||[]).forEach(ck=>errorCells.add(ck));
+        messages.push({type:'error',text:`${weekLabel(w)} ${codeOf(n.id)}：${DAYS[d].label}上了晚班，${DAYS[d+1].label}不能接早班（午+晚的隔日不能早+午）`});
+      }
+    }
+  });
+  // 時數上限
+  const {N,D}=computeHoursDetailed();
+  state.nurses.forEach(n=>{ if(N[n.id].total>state.nurseMaxHours)
+    messages.push({type:'error',text:`護理師 ${label(n)} 4 週共 ${N[n.id].total} 小時，超過上限 ${state.nurseMaxHours} 小時`}); });
+  if(state.doctorMaxHours>0) state.doctors.forEach(d=>{ if(D[d.id].total>state.doctorMaxHours)
+    messages.push({type:'error',text:`醫師 ${label(d)} 4 週共 ${D[d.id].total} 小時，超過上限 ${state.doctorMaxHours} 小時`}); });
+  return {errorCells,warnCells,messages};
+}
+const codeOf = id => { const s=docById(id)||nurById(id); return s?label(s):'?'; };
+
+function refreshValidation(){
+  const {errorCells,warnCells,messages}=computeIssues();
+  document.querySelectorAll('td.slot').forEach(td=>{
+    td.classList.toggle('cell-error',errorCells.has(td.id));
+    td.classList.toggle('cell-warn',!errorCells.has(td.id)&&warnCells.has(td.id));
+  });
+  // 摘要
+  let docFilled=0,nurFilled=0,treatMissing=0;
+  eachSlot((w,day,di,sh,pos)=>{
+    const a=getCell(w,day.key,sh.key,pos.key)||{};
+    const shiftActive=['c1','c2','c3'].some(pk=>{ const c=getCell(w,day.key,sh.key,pk); return c&&c.doctorId; });
+    if(pos.type==='clinic'){ if(a.doctorId)docFilled++; if(a.nurseId)nurFilled++; }
+    else { if(a.nurseId)nurFilled++; else if(shiftActive)treatMissing++; }
+  });
+  const errCount=messages.filter(m=>m.type==='error').length;
+  document.getElementById('summary').innerHTML=
+    `<span class="pill">開診（醫師）<b>${docFilled}</b> 格</span>
+     <span class="pill">護理師 <b>${nurFilled}</b> 格</span>
+     <span class="pill" style="${treatMissing?'border-color:#fecaca':''}">治療室缺人 <b style="color:${treatMissing?'var(--err)':'var(--ok)'}">${treatMissing}</b></span>
+     <span class="pill" style="${errCount?'border-color:#fecaca':''}">違規 <b style="color:${errCount?'var(--err)':'var(--ok)'}">${errCount}</b> 件</span>`;
+  // 違規清單
+  const box=document.getElementById('issues');
+  if(!messages.length){ box.innerHTML=`<div class="row ok"><span class="ic">✓</span><span>目前沒有偵測到違規。</span></div>`; }
+  else{
+    const order={error:0,warn:1};
+    box.innerHTML=messages.sort((a,b)=>order[a.type]-order[b.type])
+      .map(m=>`<div class="row ${m.type}"><span class="ic">${m.type==='error'?'✕':'⚠'}</span><span>${esc(m.text)}</span></div>`).join('');
+  }
+  renderStats();
+  renderPrintArea();
+}
+
+/* ---------------- 時數 ---------------- */
+function computeHoursDetailed(){
+  const mk=arr=>{const m={};arr.forEach(s=>m[s.id]={w:[0,0,0,0],total:0});return m;};
+  const N=mk(state.nurses), D=mk(state.doctors);
+  eachSlot((w,day,di,sh,pos)=>{
+    const a=getCell(w,day.key,sh.key,pos.key); if(!a) return;
+    if(a.doctorId&&D[a.doctorId]){ D[a.doctorId].w[w]+=SHIFT_HOURS; D[a.doctorId].total+=SHIFT_HOURS; }
+    if(a.nurseId&&N[a.nurseId]){ N[a.nurseId].w[w]+=SHIFT_HOURS; N[a.nurseId].total+=SHIFT_HOURS; }
+  });
+  return {N,D};
+}
+function renderStats(){
+  const {N,D}=computeHoursDetailed();
+  document.getElementById('capLabel').textContent=state.nurseMaxHours;
+  const head=`<tr><th>代號</th><th>姓名</th><th class="num">週1</th><th class="num">週2</th><th class="num">週3</th><th class="num">週4</th><th class="num">合計</th><th style="width:160px">使用率</th><th>狀態</th></tr>`;
+  // 護理師
+  let rows=state.nurses.map(n=>{
+    const h=N[n.id], cap=state.nurseMaxHours, pct=cap>0?Math.min(100,Math.round(h.total/cap*100)):0;
+    const over=cap>0&&h.total>cap, near=cap>0&&!over&&h.total>=cap*0.9;
+    const cls=over?'over':near?'warn':'';
+    const tag=over?'<span class="tag over">超過</span>':near?'<span class="tag warn">接近上限</span>':'<span class="tag ok">正常</span>';
+    return `<tr><td><span class="codechip nur">${esc(n.code)}</span></td><td>${esc(n.name||'—')}</td>
+      <td class="num">${h.w[0]}</td><td class="num">${h.w[1]}</td><td class="num">${h.w[2]}</td><td class="num">${h.w[3]}</td>
+      <td class="num"><b>${h.total}</b>${cap>0?` / ${cap}`:''}</td>
+      <td><div class="bar ${cls}"><span style="width:${cap>0?Math.min(100,h.total/cap*100):0}%"></span></div></td>
+      <td>${tag}</td></tr>`;
+  }).join('');
+  document.getElementById('nurseStats').innerHTML=head+(rows||emptyRow(9));
+  // 醫師
+  const dcap=state.doctorMaxHours;
+  rows=state.doctors.map(d=>{
+    const h=D[d.id], pct=dcap>0?Math.min(100,h.total/dcap*100):0;
+    const over=dcap>0&&h.total>dcap, near=dcap>0&&!over&&h.total>=dcap*0.9;
+    const cls=over?'over':near?'warn':'';
+    const tag=dcap<=0?'<span class="tag ok">不限</span>':over?'<span class="tag over">超過</span>':near?'<span class="tag warn">接近上限</span>':'<span class="tag ok">正常</span>';
+    return `<tr><td><span class="codechip doc">${esc(d.code)}</span></td><td>${esc(d.name||'—')}</td>
+      <td class="num">${h.w[0]}</td><td class="num">${h.w[1]}</td><td class="num">${h.w[2]}</td><td class="num">${h.w[3]}</td>
+      <td class="num"><b>${h.total}</b>${dcap>0?` / ${dcap}`:''}</td>
+      <td><div class="bar ${cls}"><span style="width:${dcap>0?pct:Math.min(100,h.total/200*100)}%"></span></div></td>
+      <td>${tag}</td></tr>`;
+  }).join('');
+  document.getElementById('doctorStats').innerHTML=head+(rows||emptyRow(9));
+}
+const emptyRow=cols=>`<tr><td colspan="${cols}" class="empty">尚無資料</td></tr>`;
+
+/* ---------------- 自動排護理師（醫師保留，依開診排護理師）---------------- */
+// 規則：有上班盡量排兩班（一天最多兩班，可早+午/午+晚/早+晚、可換診間或治療室）；排休日不排；
+//      晚班隔天不排早班；診間有醫師才排護理師；治療室每節1人；4週不超過時數上限；不可同診。
+function autoNurses(){
+  eachSlot((w,day,di,sh,pos)=>{ const a=getCell(w,day.key,sh.key,pos.key); if(a) a.nurseId=null; });
+  const nh={}; state.nurses.forEach(n=>nh[n.id]=0);
+  const exSet=new Set(state.exclusions.map(e=>e.doctorId+'|'+e.nurseId));
+  const gaps=[];
+  for(let w=0;w<WEEKS;w++){
+    let workedEvePrev={};        // 昨天上晚班的人（本週內；週日休、跨週重置）
+    DAYS.forEach((day,di)=>{
+      const todayShifts={};      // nurseId -> Set(已排班別)
+      const TS=id=>(todayShifts[id]||(todayShifts[id]=new Set()));
+      shiftsForDay(day.key).forEach(sh=>{
+        const active=['c1','c2','c3'].some(pk=>{ const a=getCell(w,day.key,sh.key,pk); return a&&a.doctorId; });
+        const cells=[];
+        if(active) cells.push({pos:'t1',doctorId:null,type:'treatment'});   // 治療室優先排
+        ['c1','c2','c3'].forEach(pk=>{ const a=getCell(w,day.key,sh.key,pk); if(a&&a.doctorId) cells.push({pos:pk,doctorId:a.doctorId,type:'clinic'}); });
+        cells.forEach(cell=>{
+          const cand=state.nurses.filter(n=>{
+            if(isOff(n.id,w,day.key)) return false;                    // 排休
+            const ts=TS(n.id);
+            if(ts.size>=2 || ts.has(sh.key)) return false;             // 一天最多兩班、同班不重複
+            if(nh[n.id]+SHIFT_HOURS>state.nurseMaxHours) return false; // 時數上限
+            if(cell.type==='clinic' && exSet.has(cell.doctorId+'|'+n.id)) return false; // 不可同診
+            if(sh.key==='m' && workedEvePrev[n.id]) return false;      // 休息：昨晚班→今天不排早
+            return true;
+          }).sort((x,y)=>{
+            const xp=(TS(x.id).size===1)?0:1, yp=(TS(y.id).size===1)?0:1; // 已上1班者優先（湊兩班）
+            if(xp!==yp) return xp-yp;
+            return (nh[x.id]-nh[y.id]) || (Math.random()-0.5);
+          });
+          if(!cand.length){ gaps.push(`${weekLabel(w)} ${day.label}${sh.label} ${posLabel(cell.pos)}`); return; }
+          const n=cand[0];
+          ensureCell(w,day.key,sh.key,cell.pos).nurseId=n.id;
+          nh[n.id]+=SHIFT_HOURS; TS(n.id).add(sh.key);
+        });
+      });
+      const nextPrev={};
+      Object.keys(todayShifts).forEach(id=>{ if(todayShifts[id].has('e')) nextPrev[id]=true; });
+      workedEvePrev=nextPrev;
+    });
+  }
+  save(); renderGrid();
+  if(gaps.length){
+    alert(`護理師已自動排入，但有 ${gaps.length} 處無法排滿：\n\n`+gaps.slice(0,14).join('\n')+(gaps.length>14?`\n…等共 ${gaps.length} 處`:'')+
+      `\n\n可能原因：護理師人數或時數上限不足、排休過多。可新增護理師、調整排休或醫師開診後再排一次。`);
+  }
+}
+
+/* ---------------- 人員名單 ---------------- */
+function renderStaff(){
+  const dh=`<tr><th style="width:90px">代號</th><th>姓名</th><th style="width:70px"></th></tr>`;
+  document.getElementById('docTable').innerHTML=dh+(state.doctors.map(d=>staffRow('doc',d)).join('')||emptyRow(3));
+  document.getElementById('nurTable').innerHTML=dh+(state.nurses.map(n=>staffRow('nur',n)).join('')||emptyRow(3));
+}
+function staffRow(kind,s){
+  return `<tr data-id="${s.id}" data-kind="${kind}">
+    <td><input class="f code" data-fld="code" value="${esc(s.code)}"></td>
+    <td><input class="f" data-fld="name" value="${esc(s.name)}" placeholder="輸入姓名"></td>
+    <td><button class="btn sm danger" data-act="del">刪除</button></td></tr>`;
+}
+
+/* ---------------- 規則設定 ---------------- */
+function renderRules(){
+  // 排除清單
+  const box=document.getElementById('exclList');
+  if(!state.exclusions.length) box.innerHTML=`<p class="hint" style="margin:0">尚未設定任何規則。</p>`;
+  else box.innerHTML=state.exclusions.map((e,i)=>{
+    const d=docById(e.doctorId), n=nurById(e.nurseId);
+    return `<div class="excl-row" data-i="${i}">
+      <span class="codechip doc">${d?esc(d.code):'?'}</span> <span style="color:var(--muted)">${d?esc(d.name):'(已刪除)'}</span>
+      <span class="x">✕</span>
+      <span class="codechip nur">${n?esc(n.code):'?'}</span> <span style="color:var(--muted)">${n?esc(n.name):'(已刪除)'}</span>
+      <button class="btn sm danger" data-act="delExcl" style="margin-left:auto">移除</button></div>`;
+  }).join('');
+  // 下拉
+  document.getElementById('exDoc').innerHTML=state.doctors.map(d=>`<option value="${d.id}">${esc(label(d))}</option>`).join('')||'<option value="">（無醫師）</option>';
+  document.getElementById('exNur').innerHTML=state.nurses.map(n=>`<option value="${n.id}">${esc(label(n))}</option>`).join('')||'<option value="">（無護理師）</option>';
+  // 設定值
+  document.getElementById('nurseMax').value=state.nurseMaxHours;
+  document.getElementById('doctorMax').value=state.doctorMaxHours;
+  document.getElementById('startDate').value=state.startDate||'';
+}
+
+/* ---------------- 列印區（全部 4 週）---------------- */
+function cellText(a,type){
+  if(!a) a={};
+  const d=a.doctorId?docById(a.doctorId):null;
+  const n=a.nurseId?nurById(a.nurseId):null;
+  if(type==='clinic') return `${d?esc(label(d)):'—'}<br>${n?esc(label(n)):'—'}`;
+  return n?esc(label(n)):'—';
+}
+function renderPrintArea(){
+  let h='';
+  for(let w=0;w<WEEKS;w++){
+    h+=`<h3>${weekLabel(w)}排班表 ${state.startDate?`<span class="pd">（${dateFor(w,0)} 起）</span>`:''}</h3>`;
+    h+='<table><thead><tr><th>日</th><th>時段</th>'+POSITIONS.map(p=>`<th>${p.label}</th>`).join('')+'</tr></thead><tbody>';
+    DAYS.forEach((day,di)=>{
+      const shs=shiftsForDay(day.key);
+      shs.forEach((sh,si)=>{
+        h+='<tr>';
+        if(si===0) h+=`<td rowspan="${shs.length}"><b>${day.label}</b>${state.startDate?`<br><span class="pd">${dateFor(w,di)}</span>`:''}</td>`;
+        h+=`<td>${sh.label}<br><span class="pd">${sh.time}</span></td>`;
+        POSITIONS.forEach(pos=> h+=`<td>${cellText(getCell(w,day.key,sh.key,pos.key),pos.type)}</td>`);
+        h+='</tr>';
+      });
+    });
+    h+='</tbody></table>';
+  }
+  document.getElementById('printArea').innerHTML=h;
+}
+
+/* ---------------- CSV 匯出 ---------------- */
+function exportCsv(){
+  const rows=[['週次','星期','時段','時間','位置','醫師代號','醫師姓名','護理師代號','護理師姓名']];
+  for(let w=0;w<WEEKS;w++) DAYS.forEach(day=> shiftsForDay(day.key).forEach(sh=> POSITIONS.forEach(pos=>{
+    const a=getCell(w,day.key,sh.key,pos.key)||{};
+    const d=a.doctorId?docById(a.doctorId):null, n=a.nurseId?nurById(a.nurseId):null;
+    rows.push([weekLabel(w),day.label,sh.label,sh.time,pos.label,
+      d?d.code:'',d?d.name:'', n?n.code:'',n?n.name:'']);
+  })));
+  const csv='﻿'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  downloadBlob(csv,'text/csv;charset=utf-8','排班表.csv');
+}
+function downloadBlob(content,type,name){
+  const blob=new Blob([content],{type});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+/* ---------------- 備份 ---------------- */
+function exportBackup(){ downloadBlob(JSON.stringify(state,null,2),'application/json','排班系統備份.json'); }
+function importBackup(file){
+  const r=new FileReader();
+  r.onload=()=>{ try{
+      const obj=JSON.parse(r.result);
+      if(!obj.doctors||!obj.nurses) throw 0;
+      state=obj; if(!state.seq) state.seq=9999;
+      save(); renderAll(); alert('已匯入備份。');
+    }catch(e){ alert('檔案格式不正確，無法匯入。'); } };
+  r.readAsText(file);
+}
+
+/* ---------------- 排休表 ---------------- */
+function renderDaysOff(){
+  const host=document.getElementById('dayoffHost'); if(!host) return;
+  if(!state.nurses.length){ host.innerHTML='<p class="empty">尚無護理師，請先到「人員名單」新增。</p>'; return; }
+  let h='<table class="list dayoff"><thead><tr><th>護理師</th>';
+  for(let w=0;w<WEEKS;w++) h+=`<th colspan="${DAYS.length}">第${w+1}週</th>`;
+  h+='</tr><tr><th></th>';
+  for(let w=0;w<WEEKS;w++) DAYS.forEach(d=> h+=`<th>${d.label.replace('週','')}</th>`);
+  h+='</tr></thead><tbody>';
+  state.nurses.forEach(n=>{
+    h+=`<tr><td><span class="codechip nur">${esc(n.code)}</span> ${esc(n.name||'')}</td>`;
+    for(let w=0;w<WEEKS;w++) DAYS.forEach(d=>{
+      const key=w+'|'+d.key, on=(n.off||[]).indexOf(key)>=0;
+      h+=`<td><button class="off-btn ${on?'on':''}" data-nid="${n.id}" data-key="${key}">${on?'休':''}</button></td>`;
+    });
+    h+='</tr>';
+  });
+  h+='</tbody></table>';
+  host.innerHTML=h;
+}
+
+/* ---------------- 醫師班表複製到全部4週 ---------------- */
+function copyDoctorsToAllWeeks(){
+  const src=curWeek;
+  for(let w=0;w<WEEKS;w++){ if(w===src) continue;
+    DAYS.forEach(day=> shiftsForDay(day.key).forEach(sh=> ['c1','c2','c3'].forEach(pk=>{
+      const s=getCell(src,day.key,sh.key,pk);
+      ensureCell(w,day.key,sh.key,pk).doctorId = (s&&s.doctorId)||null;
+    })));
+  }
+  save(); renderGrid();
+}
+
+/* ---------------- 整體渲染 ---------------- */
+function renderAll(){
+  renderWkTabs(); renderGrid(); renderStaff(); renderRules(); renderDaysOff();
+  document.getElementById('dataInfo').textContent=
+    `目前：醫師 ${state.doctors.length} 位、護理師 ${state.nurses.length} 位、規則 ${state.exclusions.length} 條。`;
+}
+
+/* ---------------- 事件 ---------------- */
+function bind(){
+  // 分頁
+  document.getElementById('tabs').addEventListener('click',e=>{
+    const b=e.target.closest('button[data-tab]'); if(!b) return;
+    document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('active',x===b));
+    document.querySelectorAll('main section').forEach(s=>s.classList.toggle('active',s.id==='tab-'+b.dataset.tab));
+    // 切回排班表時重繪，讓改過的代號/姓名即時反映在下拉選單
+    if(b.dataset.tab==='schedule') renderGrid();
+    if(b.dataset.tab==='dayoff') renderDaysOff();
+    if(b.dataset.tab==='stats') renderStats();
+  });
+  // 週次
+  document.getElementById('wkTabs').addEventListener('click',e=>{
+    const b=e.target.closest('button[data-w]'); if(!b) return;
+    curWeek=+b.dataset.w; renderWkTabs(); renderGrid();
+  });
+  // 排班格變更
+  document.getElementById('gridHost').addEventListener('change',e=>{
+    const s=e.target.closest('select.sel'); if(!s) return;
+    const c=ensureCell(+s.dataset.w,s.dataset.day,s.dataset.sh,s.dataset.pos);
+    if(s.dataset.role==='doctor') c.doctorId=s.value||null; else c.nurseId=s.value||null;
+    save(); refreshValidation();
+  });
+  // 工具列
+  document.getElementById('btnAuto').onclick=()=>{ if(confirm('自動排護理師會清掉目前所有護理師、依目前醫師開診重新排（醫師保留）。確定？')) autoNurses(); };
+  document.getElementById('btnClearNur').onclick=()=>{ if(confirm('清空全部護理師（保留醫師）？')){ eachSlot((w,day,di,sh,pos)=>{ const a=getCell(w,day.key,sh.key,pos.key); if(a)a.nurseId=null; }); save(); renderGrid(); } };
+  document.getElementById('btnClearAll').onclick=()=>{ if(confirm('清空全部 4 週的排班（含醫師）？')){ state.schedule={}; save(); renderGrid(); } };
+  document.getElementById('btnCopyDoc').onclick=()=>{ if(confirm(`把${weekLabel(curWeek)}的「醫師開診」複製到全部 4 週？（會覆蓋其他週的醫師，不影響護理師）`)) copyDoctorsToAllWeeks(); };
+  document.getElementById('btnCsv').onclick=exportCsv;
+  document.getElementById('btnPrint').onclick=()=>{ renderPrintArea(); window.print(); };
+  // 人員表（醫師 / 護理師共用）
+  ['docTable','nurTable'].forEach(tid=>{
+    const t=document.getElementById(tid);
+    t.addEventListener('input',e=>{
+      const tr=e.target.closest('tr[data-id]'); if(!tr) return;
+      const arr=tr.dataset.kind==='doc'?state.doctors:state.nurses;
+      const s=arr.find(x=>x.id===tr.dataset.id); if(!s) return;
+      s[e.target.dataset.fld]=e.target.value;
+      save();
+      // 代號改變要更新其他畫面，但避免重繪本輸入框（保留游標）
+      renderRules(); renderPrintArea();
+    });
+    t.addEventListener('click',e=>{
+      const btn=e.target.closest('button[data-act="del"]'); if(!btn) return;
+      const tr=e.target.closest('tr[data-id]'); const id=tr.dataset.id; const kind=tr.dataset.kind;
+      if(!confirm('刪除此人員？相關排班與規則會一併移除。')) return;
+      if(kind==='doc'){
+        state.doctors=state.doctors.filter(x=>x.id!==id);
+        state.exclusions=state.exclusions.filter(x=>x.doctorId!==id);
+        eachSlot((w,day,di,sh,pos)=>{ const a=getCell(w,day.key,sh.key,pos.key); if(a&&a.doctorId===id)a.doctorId=null; });
+      }else{
+        state.nurses=state.nurses.filter(x=>x.id!==id);
+        state.exclusions=state.exclusions.filter(x=>x.nurseId!==id);
+        eachSlot((w,day,di,sh,pos)=>{ const a=getCell(w,day.key,sh.key,pos.key); if(a&&a.nurseId===id)a.nurseId=null; });
+      }
+      save(); renderAll();
+    });
+  });
+  document.getElementById('addDoc').onclick=()=>{ const code=nextCode(state.doctors,'A'); state.doctors.push({id:newId(),code,name:''}); save(); renderAll(); };
+  document.getElementById('addNur').onclick=()=>{ const code=nextCode(state.nurses,'a'); state.nurses.push({id:newId(),code,name:''}); save(); renderAll(); };
+  // 規則
+  document.getElementById('addExcl').onclick=()=>{
+    const d=document.getElementById('exDoc').value, n=document.getElementById('exNur').value;
+    if(!d||!n) return;
+    if(state.exclusions.some(x=>x.doctorId===d&&x.nurseId===n)){ alert('這條規則已存在。'); return; }
+    state.exclusions.push({doctorId:d,nurseId:n}); save(); renderRules(); refreshValidation();
+  };
+  document.getElementById('exclList').addEventListener('click',e=>{
+    const b=e.target.closest('button[data-act="delExcl"]'); if(!b) return;
+    const i=+e.target.closest('.excl-row').dataset.i;
+    state.exclusions.splice(i,1); save(); renderRules(); refreshValidation();
+  });
+  const numHandler=(id,fld)=>{ document.getElementById(id).addEventListener('input',e=>{ state[fld]=Math.max(0,parseInt(e.target.value||'0',10)); save(); refreshValidation(); }); };
+  numHandler('nurseMax','nurseMaxHours'); numHandler('doctorMax','doctorMaxHours');
+  document.getElementById('startDate').addEventListener('change',e=>{ state.startDate=e.target.value; save(); renderGrid(); renderPrintArea(); });
+  // 排休：點格切換
+  document.getElementById('dayoffHost').addEventListener('click',e=>{
+    const b=e.target.closest('.off-btn'); if(!b) return;
+    const n=nurById(b.dataset.nid); if(!n) return;
+    n.off=n.off||[];
+    const i=n.off.indexOf(b.dataset.key);
+    if(i>=0) n.off.splice(i,1); else n.off.push(b.dataset.key);
+    save(); renderDaysOff(); refreshValidation();
+  });
+  // 備份
+  document.getElementById('btnExport').onclick=exportBackup;
+  document.getElementById('btnImport').onclick=()=>document.getElementById('importFile').click();
+  document.getElementById('importFile').addEventListener('change',e=>{ if(e.target.files[0]) importBackup(e.target.files[0]); e.target.value=''; });
+}
+function nextCode(arr,base){
+  // A,B,C... 或 a,b,c... 找下一個未用字母；用完則用數字
+  const start=base.charCodeAt(0);
+  for(let i=0;i<26;i++){ const c=String.fromCharCode(start+i); if(!arr.some(s=>s.code===c)) return c; }
+  return base+(arr.length+1);
+}
+
+/* ---------------- 啟動 ---------------- */
+load(); bind(); renderAll();
+</script>
+</body>
+</html>
