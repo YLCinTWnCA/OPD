@@ -65,6 +65,8 @@
   select.sel:focus{outline:2px solid var(--brand-l);border-color:var(--brand)}
   td.slot.cell-error{background:var(--err-bg) !important;outline:2px solid var(--err);outline-offset:-2px}
   td.slot.cell-warn{background:var(--warn-bg) !important}
+  td.slot.cell-closed{background:#cbd5e1 !important}
+  td.slot.cell-closed select.sel{background:#dde3ea;color:#94a3b8;border-color:#b6c2d1}
 
   .summary{display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:12px 2px 0;font-size:13px}
   .summary .pill{background:#f8fafc;border:1px solid var(--line);border-radius:20px;padding:4px 12px;font-weight:600}
@@ -128,6 +130,7 @@
     #printArea th{background:#e2e8f0}
     #printArea h3{margin:0 0 6px;font-size:14px}
     #printArea .pd{color:#475569}
+    #printArea td.pclosed{background:#cbd5e1;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     @page{size:landscape;margin:10mm}
   }
 </style>
@@ -172,9 +175,10 @@
     <div class="legend no-print">
       <span><i class="dot" style="background:var(--doc)"></i>醫師（開診）</span>
       <span><i class="dot" style="background:var(--nur)"></i>護理師</span>
-      <span><i class="dot" style="background:var(--err)"></i>違規（紅框）</span>
+      <span><i class="dot" style="background:#cbd5e1"></i>診間無醫師＝休診（暗色）</span>
       <span><i class="dot" style="background:var(--warn)"></i>已開診、尚未排護理師</span>
-      <span style="color:#94a3b8">診間不放醫師＝該節休診可留空；治療室每節一定要有人</span>
+      <span><i class="dot" style="background:var(--err)"></i>違規（紅框）</span>
+      <span style="color:#94a3b8">治療室每節一定要有人</span>
     </div>
     <div class="issues" id="issues"></div>
   </section>
@@ -514,8 +518,11 @@ const codeOf = id => { const s=docById(id)||nurById(id); return s?label(s):'?'; 
 function refreshValidation(){
   const {errorCells,warnCells,messages}=computeIssues();
   document.querySelectorAll('td.slot').forEach(td=>{
-    td.classList.toggle('cell-error',errorCells.has(td.id));
-    td.classList.toggle('cell-warn',!errorCells.has(td.id)&&warnCells.has(td.id));
+    const err=errorCells.has(td.id), warn=!err&&warnCells.has(td.id);
+    td.classList.toggle('cell-error',err);
+    td.classList.toggle('cell-warn',warn);
+    const docSel=td.querySelector('select[data-role="doctor"]');
+    td.classList.toggle('cell-closed', !!(docSel && !docSel.value && !err && !warn)); // 診間無醫師＝休診（暗色）
   });
   // 摘要
   let docFilled=0,nurFilled=0,treatMissing=0;
@@ -692,7 +699,7 @@ function renderPrintArea(){
         h+='<tr>';
         if(si===0) h+=`<td rowspan="${shs.length}"><b>${day.label}</b>${state.startDate?`<br><span class="pd">${dateFor(w,di)}</span>`:''}</td>`;
         h+=`<td>${sh.label}<br><span class="pd">${sh.time}</span></td>`;
-        POSITIONS.forEach(pos=> h+=`<td>${cellText(getCell(w,day.key,sh.key,pos.key),pos.type)}</td>`);
+        POSITIONS.forEach(pos=>{ const a=getCell(w,day.key,sh.key,pos.key); const closed=pos.type==='clinic'&&!(a&&a.doctorId); h+=`<td class="${closed?'pclosed':''}">${cellText(a,pos.type)}</td>`; });
         h+='</tr>';
       });
     });
