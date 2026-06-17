@@ -677,7 +677,7 @@ const emptyRow=cols=>`<tr><td colspan="${cols}" class="empty">尚無資料</td><
 // 護理師與行政皆：有上班盡量兩班、一天最多兩班、可早+午/午+晚/早+晚、排休不排、晚班隔天不排早、各有4週時數上限。
 // 每個有醫師的診都要一位行政（只跟可跟診醫師、不進治療室）；治療室每節1位護理師；
 // 診間護理師為選填，護理師時數排滿時該診只留行政。
-function autoFill(){
+function fillOnce(){
   eachSlot((w,day,di,sh,pos)=>{ const a=getCell(w,day.key,sh.key,pos.key); if(a){ a.nurseId=null; a.adminId=null; } });
   const nh={}; state.nurses.forEach(n=>nh[n.id]=0);
   const ah={}; (state.admins||[]).forEach(x=>ah[x.id]=0);
@@ -704,7 +704,7 @@ function autoFill(){
       if(doctorId && exSet.has(doctorId+'|'+n.id)) return false;
       if(!restOK(nDay,w,di,sh.key,n.id)) return false;
       return true;
-    }).sort((x,y)=>{ if(nh[x.id]!==nh[y.id]) return nh[y.id]-nh[x.id]; const xp=(ts(nDay,w,di,x.id).size===1)?0:1, yp=(ts(nDay,w,di,y.id).size===1)?0:1; if(xp!==yp)return xp-yp; return Math.random()-0.5; })[0]||null;  // 把護理師一個個填滿到160（最多時數者優先），填不下的診才給行政
+    }).sort((x,y)=>{ const xp=(ts(nDay,w,di,x.id).size===1)?0:1, yp=(ts(nDay,w,di,y.id).size===1)?0:1; if(xp!==yp)return xp-yp; if(nh[x.id]!==nh[y.id])return nh[x.id]-nh[y.id]; return Math.random()-0.5; })[0]||null;  // 平均分配（先湊兩班、再給時數最少者）→ 工作量足夠時所有護理師一起升到160
   };
   // ── 護理師 Pass 1：治療室（全域優先，確保護理師時數先給治療室）──
   slots.forEach(({w,di,day,sh})=>{
@@ -748,10 +748,58 @@ function autoFill(){
     else gaps.push(`${weekLabel(w)} ${day.label}${sh.label} ${posLabel(pk)}（無護理師也排不到行政）`);
   });
 
+  // ── 補滿：未達標（< floor）的護理師，把「自己可上的診」搶過來，使大家都到 floor(156)──
+  //    來源優先順序：① 行政顧的診（行政為備援）② 已達 160 的護理師（讓出後仍 ≥156）
+  const floor=Math.max(0,state.nurseMaxHours-SHIFT_HOURS);
+  const topUpOnce=(n)=>{
+    for(let w=0;w<WEEKS;w++) for(let di=0;di<DAYS.length;di++){
+      const day=DAYS[di], shs=shiftsForDay(day.key);
+      for(let si=0;si<shs.length;si++){ const sh=shs[si];
+        for(const pk of ['c1','c2','c3']){
+          const a=getCell(w,day.key,sh.key,pk);
+          if(!(a&&a.doctorId)) continue;
+          const s=ts(nDay,w,di,n.id);
+          if(s.size>=2||s.has(sh.key)) continue;                 // n 當天已兩班／同節已在
+          if(nh[n.id]+SHIFT_HOURS>state.nurseMaxHours) continue;
+          if(exSet.has(a.doctorId+'|'+n.id)) continue;           // 不可同診
+          if(!restOK(nDay,w,di,sh.key,n.id)) continue;           // 休息
+          if(a.adminId && !a.nurseId){                           // ① 從行政手上接
+            ah[a.adminId]-=SHIFT_HOURS; a.adminId=null; a.nurseId=n.id;
+            nh[n.id]+=SHIFT_HOURS; ts(nDay,w,di,n.id).add(sh.key); return true;
+          }
+          if(a.nurseId && a.nurseId!==n.id && nh[a.nurseId]>=floor+SHIFT_HOURS){  // ② 從已達160的同事接（對方降到156）
+            const m=a.nurseId; nh[m]-=SHIFT_HOURS; ts(nDay,w,di,m).delete(sh.key);
+            a.nurseId=n.id; nh[n.id]+=SHIFT_HOURS; ts(nDay,w,di,n.id).add(sh.key); return true;
+          }
+        }
+      }
+    }
+    return false;
+  };
+  state.nurses.forEach(n=>{ let g=0; while(nh[n.id]<floor && g++<400 && topUpOnce(n)){} });
+  return gaps;
+}
+/* 多次嘗試取最佳：護理師落在達標範圍(156–160)人數最多者，降低隨機造成的零星未滿 */
+function autoFill(){
+  const N=state.nurses.length, cap=state.nurseMaxHours, floor=Math.max(0,cap-SHIFT_HOURS);
+  let best=null, bestScore=null, bestGaps=[];
+  for(let t=0;t<24;t++){
+    const gaps=fillOnce();
+    const {N:NH}=computeHoursDetailed();
+    let inRange=0, total=0;
+    state.nurses.forEach(n=>{ const h=NH[n.id].total; total+=h; if(cap<=0||(h>=floor&&h<=cap)) inRange++; });
+    const score={inRange, gaps:gaps.length, total};
+    const better = !bestScore || score.inRange>bestScore.inRange
+      || (score.inRange===bestScore.inRange && score.gaps<bestScore.gaps)
+      || (score.inRange===bestScore.inRange && score.gaps===bestScore.gaps && score.total>bestScore.total);
+    if(better){ bestScore=score; bestGaps=gaps; best=JSON.parse(JSON.stringify(state.schedule)); }
+    if(bestScore.inRange===N && bestScore.gaps===0) break;   // 已全達標、無缺口 → 提早結束
+  }
+  if(best) state.schedule=best;
   save(); renderGrid();
-  if(gaps.length){
-    alert(`自動排班完成，但有 ${gaps.length} 處無法排滿（治療室護理師 或 跟診行政）：\n\n`+gaps.slice(0,14).join('\n')+(gaps.length>14?`\n…等共 ${gaps.length} 處`:'')+
-      `\n\n可能原因：行政或護理師人數/時數不足、排休過多、或行政可跟診的醫師太少。\n（診間護理師不足會自動只留跟診，不列為缺口。）`);
+  if(bestGaps.length){
+    alert(`自動排班完成，但有 ${bestGaps.length} 處無法排滿（治療室護理師 或 跟診行政）：\n\n`+bestGaps.slice(0,14).join('\n')+(bestGaps.length>14?`\n…等共 ${bestGaps.length} 處`:'')+
+      `\n\n可能原因：行政或護理師人數/時數不足、排休過多、或行政可跟診的醫師太少。`);
   }
 }
 
