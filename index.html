@@ -501,7 +501,7 @@ function computeIssues(){
       const td=nurseDay[n.id+'|'+w+'|'+DAYS[d].key], nx=nurseDay[n.id+'|'+w+'|'+DAYS[d+1].key];
       if(td&&td.shifts.has('e') && nx&&nx.shifts.has('m')){
         (nx.cells['m']||[]).forEach(ck=>errorCells.add(ck));
-        messages.push({type:'error',text:`${weekLabel(w)} ${codeOf(n.id)}：${DAYS[d].label}上了晚班，${DAYS[d+1].label}不能接早班（午+晚的隔日不能早+午）`});
+        messages.push({type:'error',text:`${weekLabel(w)} ${codeOf(n.id)}：${DAYS[d].label}上了晚班，${DAYS[d+1].label}不能接早班（晚班隔天的休息規則）`});
       }
     }
   });
