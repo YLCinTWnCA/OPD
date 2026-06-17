@@ -182,8 +182,8 @@
       <span><i class="dot" style="background:var(--nur)"></i>護理師</span>
       <span><i class="dot" style="background:var(--adm)"></i>跟診（行政）</span>
       <span><i class="dot" style="background:#cbd5e1"></i>診間無醫師＝休診（暗色）</span>
-      <span><i class="dot" style="background:var(--err)"></i>違規（紅框，含沒排跟診）</span>
-      <span style="color:#94a3b8">護理師不足時，診間可只留跟診</span>
+      <span><i class="dot" style="background:var(--err)"></i>違規（紅框）</span>
+      <span style="color:#94a3b8">每診一位助手：護理師優先、不足時改行政（兩者不可並存）</span>
     </div>
     <div class="issues" id="issues"></div>
   </section>
@@ -246,11 +246,11 @@
       <h2>內建規則（自動套用、無法關閉）</h2>
       <ul style="margin:0;padding-left:20px;line-height:1.95;color:#334155">
         <li><b>護理師與行政（跟診）</b>：有上班盡量排兩班（一天最多兩班）；可 早+午／午+晚／早+晚；可排休；晚班隔天不排早班；4 週時數各有上限；同一節不會被排在兩處。</li>
-        <li><b>每個有醫師的診</b>都要有一位<b>跟診（行政）</b>；沒排到會標紅。</li>
+        <li><b>每個有醫師的診</b>要有<b>一位助手</b>：護理師<b>或</b>行政（跟診）<b>二擇一、不可並存</b>；沒排到任何人會標紅。</li>
+        <li>自動排班<b>護理師優先</b>，護理師時數/人手不足時該診才改派<b>行政（跟診）</b>。</li>
         <li><b>行政人員不進治療室</b>，且只能跟自己「可跟診醫師」名單內的醫師同診。</li>
         <li>診間沒有醫師＝該節休診（暗色），不排人。</li>
         <li><b>治療室每一節（有開診時）要有一位護理師。</b></li>
-        <li>診間的<b>護理師為選填</b>：護理師時數排滿時，該診可只留跟診人員、不排護理師。</li>
       </ul>
     </div>
   </section>
@@ -491,8 +491,12 @@ function computeIssues(){
           const a=getCell(w,day.key,sh.key,pos.key)||{};
           const ck=ckOf(w,day.key,sh.key,pos.key);
           if(pos.type==='clinic'){
-            if(a.doctorId && !a.adminId){ errorCells.add(ck);
-              messages.push({type:'error',text:`${weekLabel(w)} ${day.label}${sh.label} ${pos.label}：沒有排跟診人員（行政）`}); }
+            if(a.doctorId){
+              if(a.nurseId && a.adminId){ errorCells.add(ck);
+                messages.push({type:'error',text:`${weekLabel(w)} ${day.label}${sh.label} ${pos.label}：同一診不能同時排護理師與行政（跟診），只能一位`}); }
+              else if(!a.nurseId && !a.adminId){ errorCells.add(ck);
+                messages.push({type:'error',text:`${weekLabel(w)} ${day.label}${sh.label} ${pos.label}：開診卻沒排助手（護理師或行政擇一）`}); }
+            }
             if(a.nurseId && !a.doctorId){ errorCells.add(ck);
               messages.push({type:'error',text:`${weekLabel(w)} ${day.label}${sh.label} ${pos.label}：沒有醫師卻排了護理師 ${codeOf(a.nurseId)}`}); }
             if(a.adminId && !a.doctorId){ errorCells.add(ck);
@@ -561,11 +565,11 @@ function refreshValidation(){
     td.classList.toggle('cell-closed', !!(docSel && !docSel.value && !err && !warn)); // 診間無醫師＝休診（暗色）
   });
   // 摘要
-  let docFilled=0,nurFilled=0,admFilled=0,treatMissing=0,admMissing=0;
+  let docFilled=0,nurFilled=0,admFilled=0,treatMissing=0,noAssist=0;
   eachSlot((w,day,di,sh,pos)=>{
     const a=getCell(w,day.key,sh.key,pos.key)||{};
     const shiftActive=['c1','c2','c3'].some(pk=>{ const c=getCell(w,day.key,sh.key,pk); return c&&c.doctorId; });
-    if(pos.type==='clinic'){ if(a.doctorId)docFilled++; if(a.nurseId)nurFilled++; if(a.adminId)admFilled++; if(a.doctorId&&!a.adminId)admMissing++; }
+    if(pos.type==='clinic'){ if(a.doctorId)docFilled++; if(a.nurseId)nurFilled++; if(a.adminId)admFilled++; if(a.doctorId&&!a.nurseId&&!a.adminId)noAssist++; }
     else { if(a.nurseId)nurFilled++; else if(shiftActive)treatMissing++; }
   });
   const errCount=messages.filter(m=>m.type==='error').length;
@@ -573,7 +577,7 @@ function refreshValidation(){
     `<span class="pill">開診（醫師）<b>${docFilled}</b></span>
      <span class="pill">護理師 <b>${nurFilled}</b></span>
      <span class="pill">跟診 <b>${admFilled}</b></span>
-     <span class="pill" style="${admMissing?'border-color:#fecaca':''}">缺跟診 <b style="color:${admMissing?'var(--err)':'var(--ok)'}">${admMissing}</b></span>
+     <span class="pill" style="${noAssist?'border-color:#fecaca':''}">缺助手 <b style="color:${noAssist?'var(--err)':'var(--ok)'}">${noAssist}</b></span>
      <span class="pill" style="${treatMissing?'border-color:#fecaca':''}">治療室缺人 <b style="color:${treatMissing?'var(--err)':'var(--ok)'}">${treatMissing}</b></span>
      <span class="pill" style="${errCount?'border-color:#fecaca':''}">違規 <b style="color:${errCount?'var(--err)':'var(--ok)'}">${errCount}</b> 件</span>`;
   // 違規清單
@@ -671,32 +675,6 @@ function autoFill(){
   const slots=[]; // 依序的每一節
   for(let w=0;w<WEEKS;w++) DAYS.forEach((day,di)=> shiftsForDay(day.key).forEach(sh=> slots.push({w,di,day,sh})));
 
-  // ── 行政（跟診）：每個開診的診都要一位 ──
-  // 先排「可跟診行政人數少」的診（受限診），把彈性行政留給它們；同樣受限程度則依週次順序。
-  const admSlots=[];
-  slots.forEach((sl,idx)=>['c1','c2','c3'].forEach(pk=>{
-    const cell=getCell(sl.w,sl.day.key,sl.sh.key,pk);
-    if(cell&&cell.doctorId){ const nElig=(state.admins||[]).filter(x=>adminAllows(x,cell.doctorId)).length;
-      admSlots.push({w:sl.w,di:sl.di,day:sl.day,sh:sl.sh,pk,doctorId:cell.doctorId,nElig,idx}); }
-  }));
-  admSlots.sort((a,b)=> (a.nElig-b.nElig) || (a.idx-b.idx));
-  admSlots.forEach(({w,di,day,sh,pk,doctorId})=>{
-    const cand=(state.admins||[]).filter(x=>{
-      if(isOff(x.id,w,day.key)) return false;
-      const s=ts(aDay,w,di,x.id); if(s.size>=2||s.has(sh.key)) return false;
-      if(state.adminMaxHours>0 && ah[x.id]+SHIFT_HOURS>state.adminMaxHours) return false;
-      if(!adminAllows(x,doctorId)) return false;
-      if(!restOK(aDay,w,di,sh.key,x.id)) return false;
-      return true;
-    }).sort((p,q)=>{
-      const pp=(ts(aDay,w,di,p.id).size===1)?0:1, qq=(ts(aDay,w,di,q.id).size===1)?0:1;
-      if(pp!==qq) return pp-qq;                                    // 已上1班者優先（湊兩班）
-      return (ah[p.id]-ah[q.id])||(Math.random()-0.5);            // 工時負載平衡
-    });
-    if(cand.length){ const x=cand[0]; ensureCell(w,day.key,sh.key,pk).adminId=x.id; ah[x.id]+=SHIFT_HOURS; ts(aDay,w,di,x.id).add(sh.key); }
-    else gaps.push(`${weekLabel(w)} ${day.label}${sh.label} ${posLabel(pk)}（跟診）`);
-  });
-
   // 護理師挑選（doctorId 為 null＝治療室，不檢查不可同診）
   const pickNurse=(w,di,day,sh,doctorId)=>{
     return state.nurses.filter(n=>{
@@ -716,13 +694,38 @@ function autoFill(){
     if(n){ ensureCell(w,day.key,sh.key,'t1').nurseId=n.id; nh[n.id]+=SHIFT_HOURS; ts(nDay,w,di,n.id).add(sh.key); }
     else gaps.push(`${weekLabel(w)} ${day.label}${sh.label} 治療室`);
   });
-  // ── 護理師 Pass 2：診間（選填；時數不足就只留跟診）──
+  // ── 護理師 Pass 2：診間（護理師優先；排不到就留給行政）──
   slots.forEach(({w,di,day,sh})=>{
     ['c1','c2','c3'].forEach(pk=>{
       const cell=getCell(w,day.key,sh.key,pk); if(!(cell&&cell.doctorId)) return;
       const n=pickNurse(w,di,day,sh,cell.doctorId);
       if(n){ ensureCell(w,day.key,sh.key,pk).nurseId=n.id; nh[n.id]+=SHIFT_HOURS; ts(nDay,w,di,n.id).add(sh.key); }
     });
+  });
+  // ── 行政 Pass：補「沒排到護理師」的開診診（同一診不與護理師並存）──
+  // 依「可跟診行政人數少（受限）」優先，把彈性行政留給受限診；同程度則依週次。
+  const admSlots=[];
+  slots.forEach((sl,idx)=>['c1','c2','c3'].forEach(pk=>{
+    const cell=getCell(sl.w,sl.day.key,sl.sh.key,pk);
+    if(cell&&cell.doctorId&&!cell.nurseId){ const nElig=(state.admins||[]).filter(x=>adminAllows(x,cell.doctorId)).length;
+      admSlots.push({w:sl.w,di:sl.di,day:sl.day,sh:sl.sh,pk,doctorId:cell.doctorId,nElig,idx}); }
+  }));
+  admSlots.sort((a,b)=> (a.nElig-b.nElig) || (a.idx-b.idx));
+  admSlots.forEach(({w,di,day,sh,pk,doctorId})=>{
+    const cand=(state.admins||[]).filter(x=>{
+      if(isOff(x.id,w,day.key)) return false;
+      const s=ts(aDay,w,di,x.id); if(s.size>=2||s.has(sh.key)) return false;
+      if(state.adminMaxHours>0 && ah[x.id]+SHIFT_HOURS>state.adminMaxHours) return false;
+      if(!adminAllows(x,doctorId)) return false;
+      if(!restOK(aDay,w,di,sh.key,x.id)) return false;
+      return true;
+    }).sort((p,q)=>{
+      const pp=(ts(aDay,w,di,p.id).size===1)?0:1, qq=(ts(aDay,w,di,q.id).size===1)?0:1;
+      if(pp!==qq) return pp-qq;                                    // 已上1班者優先（湊兩班）
+      return (ah[p.id]-ah[q.id])||(Math.random()-0.5);            // 工時負載平衡
+    });
+    if(cand.length){ const x=cand[0]; ensureCell(w,day.key,sh.key,pk).adminId=x.id; ah[x.id]+=SHIFT_HOURS; ts(aDay,w,di,x.id).add(sh.key); }
+    else gaps.push(`${weekLabel(w)} ${day.label}${sh.label} ${posLabel(pk)}（無護理師也排不到行政）`);
   });
 
   save(); renderGrid();
