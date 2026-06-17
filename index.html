@@ -226,8 +226,8 @@
     <div class="card">
       <h2>時數與週期</h2>
       <div class="field">
-        <label>護理師 4 週時數上限</label>
-        <input type="number" id="nurseMax" min="0" step="4"> <span class="unit">小時（預設 160）</span>
+        <label>護理師 4 週時數（每人排滿）</label>
+        <input type="number" id="nurseMax" min="0" step="4"> <span class="unit">小時（目標＝上限，預設 160）</span>
       </div>
       <div class="field">
         <label>醫師 4 週時數上限</label>
@@ -267,8 +267,8 @@
   <!-- ============ 時數統計 ============ -->
   <section id="tab-stats">
     <div class="card">
-      <h2>護理師時數（4 週合計，上限 <span id="capLabel">160</span> 小時）</h2>
-      <p class="hint">超過上限會標紅；達 90% 以上標橘提醒。</p>
+      <h2>護理師時數（4 週合計，每人目標 156～<span id="capLabel">160</span> 小時）</h2>
+      <p class="hint">每位護理師目標<b>剛好 160、最少 156</b>（頂多差一個班）：156–160 標綠（達標）、未滿 156 標橘（顯示差幾小時）、超過 160 標紅。普遍未滿＝護理師人數多於工作量（請減少護理師；多出的診會自動改派行政跟診）。</p>
       <table class="list" id="nurseStats"></table>
     </div>
     <div class="card">
@@ -609,12 +609,15 @@ function renderStats(){
   document.getElementById('capLabel').textContent=state.nurseMaxHours;
   document.getElementById('adminCapLabel').textContent=state.adminMaxHours;
   const head=`<tr><th>代號</th><th>姓名</th><th class="num">週1</th><th class="num">週2</th><th class="num">週3</th><th class="num">週4</th><th class="num">合計</th><th style="width:160px">使用率</th><th>狀態</th></tr>`;
-  // 護理師
+  // 護理師（目標每人 156–160 小時：達標綠、未滿156橘、超過160紅）
   let rows=state.nurses.map(n=>{
-    const h=N[n.id], cap=state.nurseMaxHours, pct=cap>0?Math.min(100,Math.round(h.total/cap*100)):0;
-    const over=cap>0&&h.total>cap, near=cap>0&&!over&&h.total>=cap*0.9;
-    const cls=over?'over':near?'warn':'';
-    const tag=over?'<span class="tag over">超過</span>':near?'<span class="tag warn">接近上限</span>':'<span class="tag ok">正常</span>';
+    const h=N[n.id], cap=state.nurseMaxHours, floor=Math.max(0,cap-SHIFT_HOURS);
+    const over=cap>0&&h.total>cap, ok=cap>0&&h.total>=floor&&h.total<=cap, under=cap>0&&h.total<floor;
+    const cls=over?'over':under?'warn':'';
+    const tag=cap<=0?'<span class="tag ok">不限</span>'
+      :over?'<span class="tag over">超過</span>'
+      :ok?'<span class="tag ok">達標</span>'
+      :`<span class="tag warn">未滿（差 ${cap-h.total}h）</span>`;
     return `<tr><td><span class="codechip nur">${esc(n.code)}</span></td><td>${esc(n.name||'—')}</td>
       <td class="num">${h.w[0]}</td><td class="num">${h.w[1]}</td><td class="num">${h.w[2]}</td><td class="num">${h.w[3]}</td>
       <td class="num"><b>${h.total}</b>${cap>0?` / ${cap}`:''}</td>
@@ -684,7 +687,7 @@ function autoFill(){
       if(doctorId && exSet.has(doctorId+'|'+n.id)) return false;
       if(!restOK(nDay,w,di,sh.key,n.id)) return false;
       return true;
-    }).sort((x,y)=>{ const xp=(ts(nDay,w,di,x.id).size===1)?0:1, yp=(ts(nDay,w,di,y.id).size===1)?0:1; if(xp!==yp)return xp-yp; return (nh[x.id]-nh[y.id])||(Math.random()-0.5); })[0]||null;
+    }).sort((x,y)=>{ if(nh[x.id]!==nh[y.id]) return nh[y.id]-nh[x.id]; const xp=(ts(nDay,w,di,x.id).size===1)?0:1, yp=(ts(nDay,w,di,y.id).size===1)?0:1; if(xp!==yp)return xp-yp; return Math.random()-0.5; })[0]||null;  // 把護理師一個個填滿到160（最多時數者優先），填不下的診才給行政
   };
   // ── 護理師 Pass 1：治療室（全域優先，確保護理師時數先給治療室）──
   slots.forEach(({w,di,day,sh})=>{
