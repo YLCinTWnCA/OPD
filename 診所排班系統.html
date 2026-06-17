@@ -238,6 +238,10 @@
         <input type="number" id="adminMax" min="0" step="4"> <span class="unit">小時（填 0＝不限制）</span>
       </div>
       <div class="field">
+        <label>晚班隔天不排早班</label>
+        <input type="checkbox" id="restRule" style="width:18px;height:18px"> <span class="unit">勾選＝啟用此休息規則；<b>取消勾選＝關閉</b>（護理師可排得更滿，但可能晚班接早班）</span>
+      </div>
+      <div class="field">
         <label>週期起始日（週一）</label>
         <input type="date" id="startDate"> <span class="unit">選填，填了排班表會顯示日期</span>
       </div>
@@ -245,7 +249,7 @@
     <div class="card">
       <h2>內建規則（自動套用、無法關閉）</h2>
       <ul style="margin:0;padding-left:20px;line-height:1.95;color:#334155">
-        <li><b>護理師與行政（跟診）</b>：有上班盡量排兩班（一天最多兩班）；可 早+午／午+晚／早+晚；可排休；晚班隔天不排早班；4 週時數各有上限；同一節不會被排在兩處。</li>
+        <li><b>護理師與行政（跟診）</b>：有上班盡量排兩班（一天最多兩班）；可 早+午／午+晚／早+晚；可排休；晚班隔天不排早班（<b>可在規則設定關閉</b>）；4 週時數各有上限；同一節不會被排在兩處。</li>
         <li><b>每個有醫師的診</b>要有<b>一位助手</b>：護理師<b>或</b>行政（跟診）<b>二擇一、不可並存</b>；沒排到任何人會標紅。</li>
         <li>自動排班<b>護理師優先</b>，護理師時數/人手不足時該診才改派<b>行政（跟診）</b>。</li>
         <li><b>行政人員不進治療室</b>，且只能跟自己「可跟診醫師」名單內的醫師同診。</li>
@@ -398,6 +402,7 @@ function normalize(){
   if(!state.seq) state.seq=9999;
   if(!state.admins) state.admins=['1','2','3'].map(c=>({id:newId(),code:c,name:'',off:[],allowedDocs:[]}));
   if(state.adminMaxHours==null) state.adminMaxHours=160;
+  if(state.restRule==null) state.restRule=true;
   state.nurses.forEach(n=>{ if(!n.off) n.off=[]; });
   state.admins.forEach(x=>{ if(!x.off) x.off=[]; if(!x.allowedDocs) x.allowedDocs=[]; });
 }
@@ -533,17 +538,19 @@ function computeIssues(){
       messages.push({type:'error',text:`${weekLabel(w)} ${dl}：${codeOf(id)} 當天已排休，不應排班`}); }
   });
   dayRules(nurseDay); dayRules(adminDay);
-  // 休息規則：上晚班的隔天不能接早班（護理師＋行政）
-  const restRule=(people,map)=>people.forEach(n=>{
-    for(let w=0;w<WEEKS;w++) for(let d=0;d<DAYS.length-1;d++){
-      const td=map[n.id+'|'+w+'|'+DAYS[d].key], nx=map[n.id+'|'+w+'|'+DAYS[d+1].key];
-      if(td&&td.shifts.has('e') && nx&&nx.shifts.has('m')){
-        (nx.cells['m']||[]).forEach(ck=>errorCells.add(ck));
-        messages.push({type:'error',text:`${weekLabel(w)} ${codeOf(n.id)}：${DAYS[d].label}上了晚班，${DAYS[d+1].label}不能接早班（晚班隔天的休息規則）`});
+  // 休息規則：上晚班的隔天不能接早班（護理師＋行政）；可在規則設定關閉
+  if(state.restRule!==false){
+    const restCheck=(people,map)=>people.forEach(n=>{
+      for(let w=0;w<WEEKS;w++) for(let d=0;d<DAYS.length-1;d++){
+        const td=map[n.id+'|'+w+'|'+DAYS[d].key], nx=map[n.id+'|'+w+'|'+DAYS[d+1].key];
+        if(td&&td.shifts.has('e') && nx&&nx.shifts.has('m')){
+          (nx.cells['m']||[]).forEach(ck=>errorCells.add(ck));
+          messages.push({type:'error',text:`${weekLabel(w)} ${codeOf(n.id)}：${DAYS[d].label}上了晚班，${DAYS[d+1].label}不能接早班（晚班隔天的休息規則）`});
+        }
       }
-    }
-  });
-  restRule(state.nurses,nurseDay); restRule(state.admins,adminDay);
+    });
+    restCheck(state.nurses,nurseDay); restCheck(state.admins,adminDay);
+  }
   // 時數上限
   const {N,D,A}=computeHoursDetailed();
   state.nurses.forEach(n=>{ if(N[n.id].total>state.nurseMaxHours)
@@ -615,14 +622,20 @@ function renderStats(){
     const open=['c1','c2','c3'].filter(pk=>{ const a=getCell(w,day.key,sh.key,pk); return a&&a.doctorId; }).length;
     if(open>0){ activeShifts++; openClinicCells+=open; }
   }));
-  const totalWork=(activeShifts+openClinicCells)*SHIFT_HOURS, cap=state.nurseMaxHours||160;
-  const maxFull=cap>0?Math.floor(totalWork/cap):0, m=state.nurses.length;
+  const totalWork=(activeShifts+openClinicCells)*SHIFT_HOURS, cap=state.nurseMaxHours||160, fl=Math.max(SHIFT_HOURS,cap-SHIFT_HOURS);
+  let nurseTotal=0; state.nurses.forEach(n=>nurseTotal+=N[n.id].total);
+  const m=state.nurses.length;
   const feasEl=document.getElementById('nurseFeas');
   if(feasEl){
-    let msg=`目前開診工作量約 <b>${totalWork}</b> 小時（含治療室）→ 最多可讓 <b>${maxFull}</b> 位護理師各排滿 ${cap} 小時。你有 <b>${m}</b> 位護理師`;
-    if(m>maxFull) msg+=`，<span style="color:var(--err);font-weight:700">多了 ${m-maxFull} 位</span> → 請把多的護理師刪掉或設整月排休（會標未滿），或多開診間，才能每位都排滿 ${cap}。`;
-    else if(m<maxFull) msg+=`，足以排滿；多出的診會自動改派行政（跟診）。`;
-    else msg+=`，剛好可以每位都排滿 ${cap} 🎯。`;
+    let msg;
+    if(nurseTotal>0){     // 已排班 → 以「實際排給護理師的總時數」推估（已含休息規則等真實限制）
+      const maxFull=Math.floor(nurseTotal/fl);
+      msg=`目前實際排給護理師共 <b>${nurseTotal}</b> 小時 → 在這份開診＋目前規則下，約可讓 <b>${maxFull}</b> 位護理師都排滿（≥${fl}h）。你有 <b>${m}</b> 位`;
+      if(m>maxFull) msg+=`，<span style="color:var(--err);font-weight:700">建議減為 ${maxFull} 位</span>（多的會「未滿」）；或多開診、或在下方關閉「晚班隔天不排早班」。`;
+      else msg+=`，目前人數可全部排滿 👍。`;
+    } else {              // 尚未排班 → 只給理論上限並提醒
+      msg=`理論工作量約 <b>${totalWork}</b> 小時（含治療室），理論上限約 <b>${Math.floor(totalWork/cap)}</b> 位。<b>按「自動排班」後</b>這裡會顯示實際可排滿人數（受「晚班隔天不排早班」等規則影響，常會略少）。`;
+    }
     feasEl.innerHTML=msg;
   }
   const head=`<tr><th>代號</th><th>姓名</th><th class="num">週1</th><th class="num">週2</th><th class="num">週3</th><th class="num">週4</th><th class="num">合計</th><th style="width:160px">使用率</th><th>狀態</th></tr>`;
@@ -688,6 +701,7 @@ function fillOnce(){
   const nDay=mkDay(), aDay=mkDay();
   const ts=(map,w,di,id)=>(map[w][di][id]||(map[w][di][id]=new Set()));
   const restOK=(map,w,di,sh,id)=>{
+    if(state.restRule===false) return true;                                                       // 規則設定可關閉
     if(sh==='m' && di>0){ const p=map[w][di-1][id]; if(p&&p.has('e')) return false; }            // 昨天晚班 → 今天不排早
     if(sh==='e' && di<DAYS.length-1){ const n2=map[w][di+1][id]; if(n2&&n2.has('m')) return false; } // 明天早班 → 今天不排晚
     return true;
@@ -846,6 +860,7 @@ function renderRules(){
   document.getElementById('nurseMax').value=state.nurseMaxHours;
   document.getElementById('doctorMax').value=state.doctorMaxHours;
   document.getElementById('adminMax').value=state.adminMaxHours;
+  document.getElementById('restRule').checked=state.restRule!==false;
   document.getElementById('startDate').value=state.startDate||'';
 }
 
@@ -1043,6 +1058,7 @@ function bind(){
   });
   const numHandler=(id,fld)=>{ document.getElementById(id).addEventListener('input',e=>{ state[fld]=Math.max(0,parseInt(e.target.value||'0',10)); save(); refreshValidation(); }); };
   numHandler('nurseMax','nurseMaxHours'); numHandler('doctorMax','doctorMaxHours'); numHandler('adminMax','adminMaxHours');
+  document.getElementById('restRule').addEventListener('change',e=>{ state.restRule=e.target.checked; save(); refreshValidation(); });
   document.getElementById('startDate').addEventListener('change',e=>{ state.startDate=e.target.value; save(); renderGrid(); renderDaysOff(); renderPrintArea(); });
   // 排休：點格切換
   document.getElementById('dayoffHost').addEventListener('click',e=>{
