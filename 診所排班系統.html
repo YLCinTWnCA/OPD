@@ -268,7 +268,8 @@
   <section id="tab-stats">
     <div class="card">
       <h2>護理師時數（4 週合計，每人目標 156～<span id="capLabel">160</span> 小時）</h2>
-      <p class="hint">每位護理師目標<b>剛好 160、最少 156</b>（頂多差一個班）：156–160 標綠（達標）、未滿 156 標橘（顯示差幾小時）、超過 160 標紅。普遍未滿＝護理師人數多於工作量（請減少護理師；多出的診會自動改派行政跟診）。</p>
+      <p class="hint">每位護理師目標<b>剛好 160、最少 156</b>（頂多差一個班）：156–160 標綠（達標）、未滿 156 標橘（顯示差幾小時）、超過 160 標紅。</p>
+      <p class="hint" id="nurseFeas" style="background:#f0fdfa;border:1px solid var(--brand-l);border-radius:8px;padding:9px 12px;color:#0f766e;margin-bottom:14px"></p>
       <table class="list" id="nurseStats"></table>
     </div>
     <div class="card">
@@ -608,6 +609,22 @@ function renderStats(){
   const {N,D,A}=computeHoursDetailed();
   document.getElementById('capLabel').textContent=state.nurseMaxHours;
   document.getElementById('adminCapLabel').textContent=state.adminMaxHours;
+  // 依目前開診量，計算最多可讓幾位護理師排滿（治療室每節1 + 有醫師的診間）
+  let openClinicCells=0, activeShifts=0;
+  for(let w=0;w<WEEKS;w++) DAYS.forEach(day=> shiftsForDay(day.key).forEach(sh=>{
+    const open=['c1','c2','c3'].filter(pk=>{ const a=getCell(w,day.key,sh.key,pk); return a&&a.doctorId; }).length;
+    if(open>0){ activeShifts++; openClinicCells+=open; }
+  }));
+  const totalWork=(activeShifts+openClinicCells)*SHIFT_HOURS, cap=state.nurseMaxHours||160;
+  const maxFull=cap>0?Math.floor(totalWork/cap):0, m=state.nurses.length;
+  const feasEl=document.getElementById('nurseFeas');
+  if(feasEl){
+    let msg=`目前開診工作量約 <b>${totalWork}</b> 小時（含治療室）→ 最多可讓 <b>${maxFull}</b> 位護理師各排滿 ${cap} 小時。你有 <b>${m}</b> 位護理師`;
+    if(m>maxFull) msg+=`，<span style="color:var(--err);font-weight:700">多了 ${m-maxFull} 位</span> → 請把多的護理師刪掉或設整月排休（會標未滿），或多開診間，才能每位都排滿 ${cap}。`;
+    else if(m<maxFull) msg+=`，足以排滿；多出的診會自動改派行政（跟診）。`;
+    else msg+=`，剛好可以每位都排滿 ${cap} 🎯。`;
+    feasEl.innerHTML=msg;
+  }
   const head=`<tr><th>代號</th><th>姓名</th><th class="num">週1</th><th class="num">週2</th><th class="num">週3</th><th class="num">週4</th><th class="num">合計</th><th style="width:160px">使用率</th><th>狀態</th></tr>`;
   // 護理師（目標每人 156–160 小時：達標綠、未滿156橘、超過160紅）
   let rows=state.nurses.map(n=>{
