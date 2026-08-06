@@ -198,7 +198,7 @@
     </div>
     <div class="card">
       <h2>護理師名單 <span style="color:var(--nur)">（代號 a、b、c…）</span></h2>
-      <p class="hint">護理師有 4 週總時數上限（在「規則設定」調整，預設 160 小時）。</p>
+      <p class="hint">護理師有 4 週總時數上限（在「規則設定」調整，預設 160 小時）。勾選「<b>兼職</b>」者：由你在排班表<b>手動指定班表</b>、<b>不受時數限制</b>，自動排班不會更動他們（也不列入排休與「可排滿人數」計算，下拉選單會標「（兼）」）。</p>
       <table class="list" id="nurTable"></table>
       <div style="margin-top:10px"><button class="btn sm" id="addNur">＋ 新增護理師</button></div>
     </div>
@@ -431,7 +431,7 @@ function eachSlot(cb){
 /* ---------------- 排班表渲染 ---------------- */
 function optionList(arr,sel){
   let o='<option value="">—</option>';
-  arr.forEach(s=> o+=`<option value="${s.id}"${s.id===sel?' selected':''}>${esc(label(s))}</option>`);
+  arr.forEach(s=> o+=`<option value="${s.id}"${s.id===sel?' selected':''}>${esc(label(s))}${s.pt?'（兼）':''}</option>`);
   return o;
 }
 function sel(role,w,day,sh,pos,val){
@@ -531,6 +531,7 @@ function computeIssues(){
   // 護理師／行政：一天最多兩班；排休日不應排班
   const dayRules=map=>Object.keys(map).forEach(k=>{
     const p=k.split('|'), id=p[0], w=+p[1], dayKey=p[2];
+    const nn=nurById(id); if(nn&&nn.pt) return;      // 兼職不受「一天最多兩班／排休」限制
     const o=map[k], dl=(DAYS.find(d=>d.key===dayKey)||{}).label;
     if(o.shifts.size>2){ Object.values(o.cells).forEach(arr=>arr.forEach(ck=>errorCells.add(ck)));
       messages.push({type:'error',text:`${weekLabel(w)} ${dl}：${codeOf(id)} 一天排了 ${o.shifts.size} 班（一天最多兩班）`}); }
@@ -541,6 +542,7 @@ function computeIssues(){
   // 休息規則：上晚班的隔天不能接早班（護理師＋行政）；可在規則設定關閉
   if(state.restRule!==false){
     const restCheck=(people,map)=>people.forEach(n=>{
+      if(n.pt) return;                               // 兼職不受休息規則限制
       for(let w=0;w<WEEKS;w++) for(let d=0;d<DAYS.length-1;d++){
         const td=map[n.id+'|'+w+'|'+DAYS[d].key], nx=map[n.id+'|'+w+'|'+DAYS[d+1].key];
         if(td&&td.shifts.has('e') && nx&&nx.shifts.has('m')){
@@ -553,7 +555,7 @@ function computeIssues(){
   }
   // 時數上限
   const {N,D,A}=computeHoursDetailed();
-  state.nurses.forEach(n=>{ if(N[n.id].total>state.nurseMaxHours)
+  state.nurses.forEach(n=>{ if(!n.pt && N[n.id].total>state.nurseMaxHours)
     messages.push({type:'error',text:`護理師 ${label(n)} 4 週共 ${N[n.id].total} 小時，超過上限 ${state.nurseMaxHours} 小時`}); });
   if(state.adminMaxHours>0) state.admins.forEach(x=>{ if(A[x.id].total>state.adminMaxHours)
     messages.push({type:'error',text:`行政 ${label(x)} 4 週共 ${A[x.id].total} 小時，超過上限 ${state.adminMaxHours} 小時`}); });
@@ -623,8 +625,8 @@ function renderStats(){
     if(open>0){ activeShifts++; openClinicCells+=open; }
   }));
   const totalWork=(activeShifts+openClinicCells)*SHIFT_HOURS, cap=state.nurseMaxHours||160, fl=Math.max(SHIFT_HOURS,cap-SHIFT_HOURS);
-  let nurseTotal=0; state.nurses.forEach(n=>nurseTotal+=N[n.id].total);
-  const m=state.nurses.length;
+  let nurseTotal=0; state.nurses.forEach(n=>{ if(!n.pt) nurseTotal+=N[n.id].total; });
+  const m=state.nurses.filter(n=>!n.pt).length;   // 只算正職
   const feasEl=document.getElementById('nurseFeas');
   if(feasEl){
     let msg;
@@ -642,6 +644,13 @@ function renderStats(){
   // 護理師（目標每人 156–160 小時：達標綠、未滿156橘、超過160紅）
   let rows=state.nurses.map(n=>{
     const h=N[n.id], cap=state.nurseMaxHours, floor=Math.max(0,cap-SHIFT_HOURS);
+    if(n.pt){   // 兼職：不限時數、手動排班，只顯示時數
+      return `<tr><td><span class="codechip nur">${esc(n.code)}</span></td><td>${esc(n.name||'—')}</td>
+        <td class="num">${h.w[0]}</td><td class="num">${h.w[1]}</td><td class="num">${h.w[2]}</td><td class="num">${h.w[3]}</td>
+        <td class="num"><b>${h.total}</b></td>
+        <td style="color:var(--muted);font-size:12px">手動排班</td>
+        <td><span class="tag" style="background:#ecfeff;color:var(--adm)">兼職·不限時數</span></td></tr>`;
+    }
     const over=cap>0&&h.total>cap, ok=cap>0&&h.total>=floor&&h.total<=cap, under=cap>0&&h.total<floor;
     const cls=over?'over':under?'warn':'';
     const tag=cap<=0?'<span class="tag ok">不限</span>'
@@ -691,7 +700,8 @@ const emptyRow=cols=>`<tr><td colspan="${cols}" class="empty">尚無資料</td><
 // 每個有醫師的診都要一位行政（只跟可跟診醫師、不進治療室）；治療室每節1位護理師；
 // 診間護理師為選填，護理師時數排滿時該診只留行政。
 function fillOnce(){
-  eachSlot((w,day,di,sh,pos)=>{ const a=getCell(w,day.key,sh.key,pos.key); if(a){ a.nurseId=null; a.adminId=null; } });
+  // 清掉自動排的護理師與行政，但保留「兼職」護理師的手動班表
+  eachSlot((w,day,di,sh,pos)=>{ const a=getCell(w,day.key,sh.key,pos.key); if(a){ const pn=a.nurseId&&nurById(a.nurseId); if(!(pn&&pn.pt)) a.nurseId=null; a.adminId=null; } });
   const nh={}; state.nurses.forEach(n=>nh[n.id]=0);
   const ah={}; (state.admins||[]).forEach(x=>ah[x.id]=0);
   const exSet=new Set(state.exclusions.map(e=>e.doctorId+'|'+e.nurseId));
@@ -712,6 +722,7 @@ function fillOnce(){
   // 護理師挑選（doctorId 為 null＝治療室，不檢查不可同診）
   const pickNurse=(w,di,day,sh,doctorId)=>{
     return state.nurses.filter(n=>{
+      if(n.pt) return false;                         // 兼職不由系統自動排（手動指定）
       if(isOff(n.id,w,day.key)) return false;
       const s=ts(nDay,w,di,n.id); if(s.size>=2||s.has(sh.key)) return false;
       if(nh[n.id]+SHIFT_HOURS>state.nurseMaxHours) return false;
@@ -724,6 +735,7 @@ function fillOnce(){
   slots.forEach(({w,di,day,sh})=>{
     const active=['c1','c2','c3'].some(pk=>{ const a=getCell(w,day.key,sh.key,pk); return a&&a.doctorId; });
     if(!active) return;
+    const tc=getCell(w,day.key,sh.key,'t1'); if(tc&&tc.nurseId) return;   // 已由兼職顧治療室
     const n=pickNurse(w,di,day,sh,null);
     if(n){ ensureCell(w,day.key,sh.key,'t1').nurseId=n.id; nh[n.id]+=SHIFT_HOURS; ts(nDay,w,di,n.id).add(sh.key); }
     else gaps.push(`${weekLabel(w)} ${day.label}${sh.label} 治療室`);
@@ -732,6 +744,7 @@ function fillOnce(){
   slots.forEach(({w,di,day,sh})=>{
     ['c1','c2','c3'].forEach(pk=>{
       const cell=getCell(w,day.key,sh.key,pk); if(!(cell&&cell.doctorId)) return;
+      if(cell.nurseId) return;   // 已有護理師（含兼職手動排）
       const n=pickNurse(w,di,day,sh,cell.doctorId);
       if(n){ ensureCell(w,day.key,sh.key,pk).nurseId=n.id; nh[n.id]+=SHIFT_HOURS; ts(nDay,w,di,n.id).add(sh.key); }
     });
@@ -790,18 +803,18 @@ function fillOnce(){
     }
     return false;
   };
-  state.nurses.forEach(n=>{ let g=0; while(nh[n.id]<floor && g++<400 && topUpOnce(n)){} });
+  state.nurses.forEach(n=>{ if(n.pt) return; let g=0; while(nh[n.id]<floor && g++<400 && topUpOnce(n)){} });
   return gaps;
 }
 /* 多次嘗試取最佳：護理師落在達標範圍(156–160)人數最多者，降低隨機造成的零星未滿 */
 function autoFill(){
-  const N=state.nurses.length, cap=state.nurseMaxHours, floor=Math.max(0,cap-SHIFT_HOURS);
+  const N=state.nurses.filter(n=>!n.pt).length, cap=state.nurseMaxHours, floor=Math.max(0,cap-SHIFT_HOURS);
   let best=null, bestScore=null, bestGaps=[];
   for(let t=0;t<24;t++){
     const gaps=fillOnce();
     const {N:NH}=computeHoursDetailed();
     let inRange=0, total=0;
-    state.nurses.forEach(n=>{ const h=NH[n.id].total; total+=h; if(cap<=0||(h>=floor&&h<=cap)) inRange++; });
+    state.nurses.forEach(n=>{ if(n.pt) return; const h=NH[n.id].total; total+=h; if(cap<=0||(h>=floor&&h<=cap)) inRange++; });
     const score={inRange, gaps:gaps.length, total};
     const better = !bestScore || score.inRange>bestScore.inRange
       || (score.inRange===bestScore.inRange && score.gaps<bestScore.gaps)
@@ -821,14 +834,19 @@ function autoFill(){
 function renderStaff(){
   const dh=`<tr><th style="width:90px">代號</th><th>姓名</th><th style="width:70px"></th></tr>`;
   document.getElementById('docTable').innerHTML=dh+(state.doctors.map(d=>staffRow('doc',d)).join('')||emptyRow(3));
-  document.getElementById('nurTable').innerHTML=dh+(state.nurses.map(n=>staffRow('nur',n)).join('')||emptyRow(3));
+  const nhead=`<tr><th style="width:90px">代號</th><th>姓名</th><th style="width:120px">兼職</th><th style="width:70px"></th></tr>`;
+  document.getElementById('nurTable').innerHTML=nhead+(state.nurses.map(n=>staffRow('nur',n)).join('')||emptyRow(4));
   const ah=`<tr><th style="width:90px">代號</th><th style="width:150px">姓名</th><th>可跟診的醫師（不勾＝不限）</th><th style="width:70px"></th></tr>`;
   document.getElementById('admTable').innerHTML=ah+((state.admins||[]).map(adminRow).join('')||emptyRow(4));
 }
 function staffRow(kind,s){
+  const ptCell = kind==='nur'
+    ? `<td><label style="cursor:pointer;font-weight:600;color:${s.pt?'var(--adm)':'var(--muted)'}"><input type="checkbox" class="ptchk" ${s.pt?'checked':''} style="width:16px;height:16px;vertical-align:-3px"> 兼職</label></td>`
+    : '';
   return `<tr data-id="${s.id}" data-kind="${kind}">
     <td><input class="f code" data-fld="code" value="${esc(s.code)}"></td>
     <td><input class="f" data-fld="name" value="${esc(s.name)}" placeholder="輸入姓名"></td>
+    ${ptCell}
     <td><button class="btn sm danger" data-act="del">刪除</button></td></tr>`;
 }
 function adminRow(x){
@@ -929,7 +947,7 @@ function importBackup(file){
 /* ---------------- 排休表 ---------------- */
 function renderDaysOff(){
   const host=document.getElementById('dayoffHost'); if(!host) return;
-  const people=[...state.nurses.map(p=>({p,role:'nur'})), ...(state.admins||[]).map(p=>({p,role:'adm'}))];
+  const people=[...state.nurses.filter(n=>!n.pt).map(p=>({p,role:'nur'})), ...(state.admins||[]).map(p=>({p,role:'adm'}))];
   if(!people.length){ host.innerHTML='<p class="empty">尚無護理師或行政人員，請先到「人員名單」新增。</p>'; return; }
   let h='<table class="list dayoff"><thead><tr><th>人員</th>';
   for(let w=0;w<WEEKS;w++) h+=`<th colspan="${DAYS.length}">第${w+1}週</th>`;
@@ -1005,6 +1023,11 @@ function bind(){
     const t=document.getElementById(tid);
     t.addEventListener('input',e=>{
       const tr=e.target.closest('tr[data-id]'); if(!tr) return;
+      if(e.target.classList.contains('ptchk')){   // 兼職切換
+        const n=nurById(tr.dataset.id); if(n){ n.pt=e.target.checked; save(); renderStaff(); renderDaysOff(); refreshValidation(); }
+        return;
+      }
+      if(!e.target.dataset.fld) return;
       const arr=tr.dataset.kind==='doc'?state.doctors:(tr.dataset.kind==='adm'?state.admins:state.nurses);
       const s=arr.find(x=>x.id===tr.dataset.id); if(!s) return;
       s[e.target.dataset.fld]=e.target.value;
