@@ -199,7 +199,7 @@
     </div>
     <div class="card">
       <h2>護理師名單 <span style="color:var(--nur)">（代號 a、b、c…）</span></h2>
-      <p class="hint">護理師有 4 週總時數上限（在「規則設定」調整，預設 160 小時）。勾選「<b>兼職</b>」者：<b>不受時數限制</b>，改到「<b>排休</b>」分頁指定其「<b>可上班時段</b>」；自動排班會<b>先排完全職</b>，再把排不滿的班在兼職的可上時段內補上（不列入「可排滿人數」計算，下拉會標「（兼）」）。</p>
+      <p class="hint">護理師有 4 週排班目標（在「規則設定」調整，預設 152 小時，法定上限 160 由系統固定把關）。勾選「<b>兼職</b>」者：<b>不設 156–160 時數目標</b>，改到「<b>排休</b>」分頁指定其「<b>可上班時段</b>」；自動排班會<b>先排完全職</b>，再把排不滿的班在兼職的可上時段內補上（不列入「可排滿人數」計算，下拉會標「（兼）」）。<b>兼職仍受法定規則約束</b>：一天最多兩班、4 週 160 小時上限、4 週至少 8 天全休。</p>
       <table class="list" id="nurTable"></table>
       <div style="margin-top:10px"><button class="btn sm" id="addNur">＋ 新增護理師</button></div>
     </div>
@@ -227,20 +227,20 @@
     <div class="card">
       <h2>時數與週期</h2>
       <div class="field">
-        <label>護理師 4 週時數（每人排滿）</label>
-        <input type="number" id="nurseMax" min="0" step="4"> <span class="unit">小時（目標＝上限，預設 160）</span>
+        <label>護理師 4 週排班目標</label>
+        <input type="number" id="nurseMax" min="0" max="160" step="4"> <span class="unit">小時（預設 152＝保留 8 小時加班緩衝；法定上限 160 由系統固定把關，超過目標標橘、超過 160 標紅）</span>
       </div>
       <div class="field">
         <label>醫師 4 週時數上限</label>
         <input type="number" id="doctorMax" min="0" step="4"> <span class="unit">小時（填 0＝不限制）</span>
       </div>
       <div class="field">
-        <label>行政人員 4 週時數上限</label>
-        <input type="number" id="adminMax" min="0" step="4"> <span class="unit">小時（填 0＝不限制）</span>
+        <label>行政人員 4 週排班目標</label>
+        <input type="number" id="adminMax" min="0" max="160" step="4"> <span class="unit">小時（填 0＝不設目標；法定 160 上限仍固定把關）</span>
       </div>
       <div class="field">
         <label>晚班隔天不排早班</label>
-        <input type="checkbox" id="restRule" style="width:18px;height:18px"> <span class="unit">勾選＝啟用此休息規則；<b>取消勾選＝關閉</b>（護理師可排得更滿，但可能晚班接早班）</span>
+        <input type="checkbox" id="restRule" style="width:18px;height:18px"> <span class="unit">勾選＝啟用此休息規則；<b>取消勾選＝關閉</b>（護理師可排得更滿，但可能晚班接早班）。<b>關閉後晚接早仍會顯示橘色警示</b>——晚班 22:00 下班到隔天早班 08:00 僅間隔 10 小時，不足勞基法 §34 的 11 小時，警示無法關閉。</span>
       </div>
       <div class="field">
         <label>週期起始日（週一）</label>
@@ -250,7 +250,9 @@
     <div class="card">
       <h2>內建規則（自動套用、無法關閉）</h2>
       <ul style="margin:0;padding-left:20px;line-height:1.95;color:#334155">
-        <li><b>護理師與行政（跟診）</b>：有上班盡量排兩班（一天最多兩班）；可 早+午／午+晚／早+晚；可排休；晚班隔天不排早班（<b>可在規則設定關閉</b>）；4 週時數各有上限；同一節不會被排在兩處。</li>
+        <li><b>護理師與行政（跟診）</b>：有上班盡量排兩班（一天最多兩班，<b>含兼職</b>）；可 早+午／午+晚／早+晚；可排休；晚班隔天不排早班（<b>可在規則設定關閉，但關閉後仍會橘色警示</b>）；同一節不會被排在兩處。</li>
+        <li>🕐 <b>時數雙層把關</b>：「排班目標」（上方設定，預設 152）與「法定上限 160」分開判定——自動排班只排到<b>目標</b>；手動排超過目標但未破 160 標<b>橘</b>（顯示剩餘加班緩衝）；超過 160 標<b>紅</b>（法定違規，兼職亦同）。目標與 160 之間的差距就是臨時補班的安全空間；補班仍屬延長工時（應給加班費或補休、單日含加班不得超過 12 小時）。</li>
+        <li>⚖️ <b>勞基法四週變形工時</b>：每人（含兼職與行政）4 週內「例假＋休息日」至少 <b>8 天</b>——週日休診固定 4 天，週一～六還需<b>至少 4 個整天完全不排班</b>（即 4 週最多工作 20 天）；每兩週至少 2 日例假（週日已滿足）；4 週正常工時上限 160 小時。自動排班強制遵守，手動排超過會標紅並列於違規清單。</li>
         <li><b>每個有醫師的診</b>要有<b>一位助手</b>：護理師<b>或</b>行政（跟診）<b>二擇一、不可並存</b>；沒排到任何人會標紅。</li>
         <li>自動排班<b>護理師優先</b>，護理師時數/人手不足時該診才改派<b>行政（跟診）</b>。</li>
         <li><b>行政人員不進治療室</b>，且只能跟自己「可跟診醫師」名單內的醫師同診。</li>
@@ -269,7 +271,7 @@
     </div>
     <div class="card">
       <h2>兼職護理師可上班時段（每週適用）</h2>
-      <p class="hint">綠色＝該時段可上班。自動排班會「<b>先排完全職</b>，剩下排不滿的班」才在這些時段內安排兼職（不受時數限制）。此設定<b>每週套用</b>。先到「人員名單」把某位護理師勾為「兼職」，才會出現在這裡。</p>
+      <p class="hint">綠色＝該時段可上班。自動排班會「<b>先排完全職</b>，剩下排不滿的班」才在這些時段內安排兼職（不設時數目標，但仍受一天兩班、4 週 160 小時與 8 天全休的法定上限）。此設定<b>每週套用</b>。先到「人員名單」把某位護理師勾為「兼職」，才會出現在這裡。</p>
       <div class="grid-wrap"><div id="availHost"></div></div>
     </div>
   </section>
@@ -277,8 +279,9 @@
   <!-- ============ 時數統計 ============ -->
   <section id="tab-stats">
     <div class="card">
-      <h2>護理師時數（4 週合計，每人目標 156～<span id="capLabel">160</span> 小時）</h2>
-      <p class="hint">每位護理師目標<b>剛好 160、最少 156</b>（頂多差一個班）：156–160 標綠（達標）、未滿 156 標橘（顯示差幾小時）、超過 160 標紅。</p>
+      <h2>護理師時數（4 週合計，每人目標 <span id="floorLabel">148</span>～<span id="capLabel">152</span> 小時）</h2>
+      <p class="hint">每位護理師以「排班目標」（規則設定，預設 152）為準：目標−4～目標 標綠（達標）、未滿標橘、<b>超過目標標橘（吃掉加班緩衝）、超過法定 160 標紅</b>。</p>
+      <p class="hint">⚖️ <b>法遵提醒</b>：160 小時＝四週變形工時的<b>法定正常工時上限</b>。排班目標設低於 160（預設 152）可保留臨時補班的緩衝；補班仍屬延長工時（應給加班費或補休、每月加班上限 46 小時、單日總工時含加班不得超過 12 小時），但總時數壓在 160 內可大幅降低超時風險。「全休日」欄位需 ≥ 8 天（週日休診固定 4 天＋週一～六至少 4 個整天不排班）。</p>
       <p class="hint" id="nurseFeas" style="background:#f0fdfa;border:1px solid var(--brand-l);border-radius:8px;padding:9px 12px;color:#0f766e;margin-bottom:14px"></p>
       <table class="list" id="nurseStats"></table>
     </div>
@@ -315,6 +318,7 @@
         <li>有違規時格子會變紅、下方列出原因；「<b>時數統計</b>」可看每人總時數。</li>
         <li>完成後「<b>匯出 CSV</b>」或「<b>列印 / 存 PDF</b>」交付。</li>
       </ol>
+      <p class="hint" style="margin-top:12px">⚖️ 本系統內建勞基法<b>四週變形工時</b>檢核（4 週 ≤160 小時、每日 ≤2 班、4 週全休 ≥8 天、晚接早警示）。提醒：實施四週變形工時須先經<b>工會或勞資會議同意</b>；本工具僅輔助排班，不構成法律意見。</p>
     </div>
   </section>
 </main>
@@ -344,6 +348,12 @@ const POSITIONS = [
   {key:'t1',label:'治療室',type:'treatment'}
 ];
 const SHIFT_HOURS = 4, WEEKS = 4, KEY = 'opd-scheduler-v1';
+/* 勞基法四週變形工時：4週(28天)內「例假＋休息日」至少8天 → 最多工作20天。
+   週日休診固定貢獻4天休，故週一～六(24天)中還需至少4個整天不排班。 */
+const MIN_OFF_DAYS = 8, MAX_WORK_DAYS = 28 - MIN_OFF_DAYS; // = 20 個工作天上限
+// 法定正常工時上限（四週變形固定 160 小時）：與「排班目標」(nurseMaxHours) 脫鉤。
+// 排班目標建議設 ≤152，保留 1–2 班加班緩衝；超過目標＝橘色警示，超過 160＝紅色違規。
+const LEGAL_CAP_HOURS = 160;
 const SHIFT_LABEL = {m:'早班',a:'午班',e:'晚班'};
 const shiftsForDay = d => d==='sat' ? SHIFTS_SAT : SHIFTS_WEEKDAY;
 const weekLabel = w => '第'+(w+1)+'週';
@@ -367,9 +377,9 @@ function defaultState(){
     nurses:nurs,
     admins:adms,
     exclusions:[{doctorId:docs[0].id, nurseId:nurs[0].id}], // 範例：A ✕ a
-    nurseMaxHours:160,
+    nurseMaxHours:152,
     doctorMaxHours:0,
-    adminMaxHours:160,
+    adminMaxHours:152,
     startDate:'',
     schedule:{}
   };
@@ -407,7 +417,8 @@ function adminAllows(adm,doctorId){ return !adm.allowedDocs || adm.allowedDocs.l
 function normalize(){
   if(!state.seq) state.seq=9999;
   if(!state.admins) state.admins=['1','2','3'].map(c=>({id:newId(),code:c,name:'',off:[],allowedDocs:[]}));
-  if(state.adminMaxHours==null) state.adminMaxHours=160;
+  if(state.adminMaxHours==null) state.adminMaxHours=152;
+  if(state.nurseMaxHours==null) state.nurseMaxHours=152;
   if(state.restRule==null) state.restRule=true;
   state.nurses.forEach(n=>{ if(!n.off) n.off=[]; if(!n.avail) n.avail=[]; });
   state.admins.forEach(x=>{ if(!x.off) x.off=[]; if(!x.allowedDocs) x.allowedDocs=[]; });
@@ -539,34 +550,53 @@ function computeIssues(){
   // 護理師／行政：一天最多兩班；排休日不應排班
   const dayRules=map=>Object.keys(map).forEach(k=>{
     const p=k.split('|'), id=p[0], w=+p[1], dayKey=p[2];
-    const nn=nurById(id); if(nn&&nn.pt) return;      // 兼職不受「一天最多兩班／排休」限制
+    const nn=nurById(id), isPT=!!(nn&&nn.pt);        // 兼職：適用「一天最多兩班」（勞基法），僅排休機制不同（用可上時段）
     const o=map[k], dl=(DAYS.find(d=>d.key===dayKey)||{}).label;
     if(o.shifts.size>2){ Object.values(o.cells).forEach(arr=>arr.forEach(ck=>errorCells.add(ck)));
-      messages.push({type:'error',text:`${weekLabel(w)} ${dl}：${codeOf(id)} 一天排了 ${o.shifts.size} 班（一天最多兩班）`}); }
-    if(isOff(id,w,dayKey)){ Object.values(o.cells).forEach(arr=>arr.forEach(ck=>errorCells.add(ck)));
+      messages.push({type:'error',text:`${weekLabel(w)} ${dl}：${codeOf(id)} 一天排了 ${o.shifts.size} 班（一天最多兩班${isPT?'，兼職亦適用':''}）`}); }
+    if(!isPT && isOff(id,w,dayKey)){ Object.values(o.cells).forEach(arr=>arr.forEach(ck=>errorCells.add(ck)));
       messages.push({type:'error',text:`${weekLabel(w)} ${dl}：${codeOf(id)} 當天已排休，不應排班`}); }
   });
   dayRules(nurseDay); dayRules(adminDay);
-  // 休息規則：上晚班的隔天不能接早班（護理師＋行政）；可在規則設定關閉
-  if(state.restRule!==false){
+  // 休息規則：上晚班的隔天接早班（換班間隔不足11小時）。
+  // 規則開啟＋正職 → 紅框錯誤（維持原行為）；規則關閉或兼職 → 橘色警示（勞基法§34風險，警示不可關閉）。
+  {
     const restCheck=(people,map)=>people.forEach(n=>{
-      if(n.pt) return;                               // 兼職不受休息規則限制
       for(let w=0;w<WEEKS;w++) for(let d=0;d<DAYS.length-1;d++){
         const td=map[n.id+'|'+w+'|'+DAYS[d].key], nx=map[n.id+'|'+w+'|'+DAYS[d+1].key];
         if(td&&td.shifts.has('e') && nx&&nx.shifts.has('m')){
-          (nx.cells['m']||[]).forEach(ck=>errorCells.add(ck));
-          messages.push({type:'error',text:`${weekLabel(w)} ${codeOf(n.id)}：${DAYS[d].label}上了晚班，${DAYS[d+1].label}不能接早班（晚班隔天的休息規則）`});
+          const hard = state.restRule!==false && !n.pt;
+          (nx.cells['m']||[]).forEach(ck=>(hard?errorCells:warnCells).add(ck));
+          messages.push(hard
+            ?{type:'error',text:`${weekLabel(w)} ${codeOf(n.id)}：${DAYS[d].label}上了晚班，${DAYS[d+1].label}不能接早班（晚班隔天的休息規則）`}
+            :{type:'warn',text:`${weekLabel(w)} ${codeOf(n.id)}：${DAYS[d].label}晚班接${DAYS[d+1].label}早班，換班間隔不足 11 小時（勞基法 §34 風險，建議調整）`});
         }
       }
     });
     restCheck(state.nurses,nurseDay); restCheck(state.admins,adminDay);
   }
-  // 時數上限
+  // 時數雙層檢核：超過「排班目標」＝橘色警示（吃掉加班緩衝）；超過法定 160 小時＝紅色違規（含兼職）。
   const {N,D,A}=computeHoursDetailed();
-  state.nurses.forEach(n=>{ if(!n.pt && N[n.id].total>state.nurseMaxHours)
-    messages.push({type:'error',text:`護理師 ${label(n)} 4 週共 ${N[n.id].total} 小時，超過上限 ${state.nurseMaxHours} 小時`}); });
-  if(state.adminMaxHours>0) state.admins.forEach(x=>{ if(A[x.id].total>state.adminMaxHours)
-    messages.push({type:'error',text:`行政 ${label(x)} 4 週共 ${A[x.id].total} 小時，超過上限 ${state.adminMaxHours} 小時`}); });
+  state.nurses.forEach(n=>{ const t=N[n.id].total;
+    if(t>LEGAL_CAP_HOURS)
+      messages.push({type:'error',text:`護理師 ${label(n)}${n.pt?'（兼職）':''} 4 週共 ${t} 小時，超過法定正常工時上限 ${LEGAL_CAP_HOURS} 小時`});
+    else if(!n.pt && state.nurseMaxHours>0 && t>state.nurseMaxHours)
+      messages.push({type:'warn',text:`護理師 ${label(n)} 4 週共 ${t} 小時，超過排班目標 ${state.nurseMaxHours} 小時（距法定上限僅剩 ${LEGAL_CAP_HOURS-t} 小時加班緩衝）`}); });
+  // 法遵：四週變形工時休假檢核（含兼職與行政；週日休診固定計 4 天休）
+  const RD=computeRestDays();
+  const restDayCheck=(people,M,role)=>people.forEach(p=>{
+    const o=M[p.id]; if(!o) return;
+    if(o.offTotal<MIN_OFF_DAYS)
+      messages.push({type:'error',text:`${role} ${label(p)}：4 週僅休 ${o.offTotal} 天（工作 ${o.workedDays} 天），未達「例假＋休息日至少 8 天」→ 週一～六需再空出 ${MIN_OFF_DAYS-o.offTotal} 個整天不排班`});
+    o.blockOff.forEach((b,i)=>{ if(b<2)
+      messages.push({type:'error',text:`${role} ${label(p)}：第 ${i?'3–4':'1–2'} 週僅休 ${b} 天，未達每兩週至少 2 日例假`}); });
+  });
+  restDayCheck(state.nurses,RD.N,'護理師'); restDayCheck(state.admins||[],RD.A,'行政');
+  state.admins.forEach(x=>{ const t=A[x.id].total;
+    if(t>LEGAL_CAP_HOURS)
+      messages.push({type:'error',text:`行政 ${label(x)} 4 週共 ${t} 小時，超過法定正常工時上限 ${LEGAL_CAP_HOURS} 小時`});
+    else if(state.adminMaxHours>0 && t>state.adminMaxHours)
+      messages.push({type:'warn',text:`行政 ${label(x)} 4 週共 ${t} 小時，超過排班目標 ${state.adminMaxHours} 小時（距法定上限僅剩 ${LEGAL_CAP_HOURS-t} 小時加班緩衝）`}); });
   if(state.doctorMaxHours>0) state.doctors.forEach(d=>{ if(D[d.id].total>state.doctorMaxHours)
     messages.push({type:'error',text:`醫師 ${label(d)} 4 週共 ${D[d.id].total} 小時，超過上限 ${state.doctorMaxHours} 小時`}); });
   return {errorCells,warnCells,messages};
@@ -610,6 +640,29 @@ function refreshValidation(){
   renderPrintArea();
 }
 
+/* ---------------- 法遵：四週變形工時 休假日 ---------------- */
+// 全休日＝當日早/午/晚（含治療室）皆未被排班。週日不開診，每人每週固定+1天休。
+// 回傳每人：workedDays(週一～六實際工作天數)、offTotal(28天內全休日)、blockOff(第1–2週/第3–4週全休日)。
+function computeRestDays(){
+  const mk=arr=>{const m={};arr.forEach(s=>m[s.id]={workedDays:0,blockWorked:[0,0]});return m;};
+  const N=mk(state.nurses), A=mk(state.admins||[]);
+  const seen=new Set();
+  eachSlot((w,day,di,sh,pos)=>{
+    const a=getCell(w,day.key,sh.key,pos.key); if(!a) return;
+    const blk=w<2?0:1;
+    [[a.nurseId,N],[a.adminId,A]].forEach(([id,M])=>{
+      if(id&&M[id]){ const k=id+'|'+w+'|'+day.key;
+        if(!seen.has(k)){ seen.add(k); M[id].workedDays++; M[id].blockWorked[blk]++; } }
+    });
+  });
+  const fin=M=>Object.values(M).forEach(o=>{
+    o.offTotal=28-o.workedDays;                       // 含4個週日
+    o.blockOff=[14-o.blockWorked[0],14-o.blockWorked[1]]; // 各含2個週日
+  });
+  fin(N); fin(A);
+  return {N,A};
+}
+
 /* ---------------- 時數 ---------------- */
 function computeHoursDetailed(){
   const mk=arr=>{const m={};arr.forEach(s=>m[s.id]={w:[0,0,0,0],total:0});return m;};
@@ -625,6 +678,7 @@ function computeHoursDetailed(){
 function renderStats(){
   const {N,D,A}=computeHoursDetailed();
   document.getElementById('capLabel').textContent=state.nurseMaxHours;
+  const fLbl=document.getElementById('floorLabel'); if(fLbl) fLbl.textContent=Math.max(0,state.nurseMaxHours-SHIFT_HOURS);
   document.getElementById('adminCapLabel').textContent=state.adminMaxHours;
   // 依目前開診量，計算最多可讓幾位護理師排滿（治療室每節1 + 有醫師的診間）
   let openClinicCells=0, activeShifts=0;
@@ -648,30 +702,39 @@ function renderStats(){
     }
     feasEl.innerHTML=msg;
   }
+  const RD=computeRestDays();
+  const offCell=o=>{ const v=o?o.offTotal:28; const bad=v<MIN_OFF_DAYS;
+    return `<td class="num" style="font-weight:700;color:${bad?'var(--err)':'var(--ok)'}">${v}/${MIN_OFF_DAYS}${bad?' ✕':''}</td>`; };
   const head=`<tr><th>代號</th><th>姓名</th><th class="num">週1</th><th class="num">週2</th><th class="num">週3</th><th class="num">週4</th><th class="num">合計</th><th style="width:160px">使用率</th><th>狀態</th></tr>`;
+  const headR=head.replace('<th>狀態</th>','<th class="num" title="4週內例假＋休息日，含週日，法定至少8天">全休日</th><th>狀態</th>');
   // 護理師（目標每人 156–160 小時：達標綠、未滿156橘、超過160紅）
   let rows=state.nurses.map(n=>{
     const h=N[n.id], cap=state.nurseMaxHours, floor=Math.max(0,cap-SHIFT_HOURS);
-    if(n.pt){   // 兼職：不限時數、手動排班，只顯示時數
+    if(n.pt){   // 兼職：不設時數目標（仍受160上限與4週8天休），手動或自動補班
       return `<tr><td><span class="codechip nur">${esc(n.code)}</span></td><td>${esc(n.name||'—')}</td>
         <td class="num">${h.w[0]}</td><td class="num">${h.w[1]}</td><td class="num">${h.w[2]}</td><td class="num">${h.w[3]}</td>
-        <td class="num"><b>${h.total}</b></td>
+        <td class="num"><b>${h.total}</b> / ${LEGAL_CAP_HOURS}</td>
         <td style="color:var(--muted);font-size:12px">補全職缺班</td>
-        <td><span class="tag" style="background:#ecfeff;color:var(--adm)">兼職·不限時數</span></td></tr>`;
+        ${offCell(RD.N[n.id])}
+        <td><span class="tag" style="background:#ecfeff;color:var(--adm)">兼職·不設目標</span></td></tr>`;
     }
-    const over=cap>0&&h.total>cap, ok=cap>0&&h.total>=floor&&h.total<=cap, under=cap>0&&h.total<floor;
-    const cls=over?'over':under?'warn':'';
-    const tag=cap<=0?'<span class="tag ok">不限</span>'
-      :over?'<span class="tag over">超過</span>'
-      :ok?'<span class="tag ok">達標</span>'
-      :`<span class="tag warn">未滿（差 ${cap-h.total}h）</span>`;
+    const t=h.total;
+    const overLegal=t>LEGAL_CAP_HOURS, overTarget=!overLegal&&cap>0&&t>cap,
+          ok=cap>0&&t>=floor&&t<=cap, under=cap>0&&t<floor;
+    const cls=overLegal?'over':(overTarget||under)?'warn':'';
+    const tag=cap<=0?(overLegal?'<span class="tag over">超過法定160</span>':'<span class="tag ok">不設目標</span>')
+      :overLegal?'<span class="tag over">超過法定160</span>'
+      :overTarget?`<span class="tag warn">超出目標（緩衝剩 ${LEGAL_CAP_HOURS-t}h）</span>`
+      :ok?`<span class="tag ok">達標（緩衝 ${LEGAL_CAP_HOURS-t}h）</span>`
+      :`<span class="tag warn">未滿（差 ${cap-t}h）</span>`;
     return `<tr><td><span class="codechip nur">${esc(n.code)}</span></td><td>${esc(n.name||'—')}</td>
       <td class="num">${h.w[0]}</td><td class="num">${h.w[1]}</td><td class="num">${h.w[2]}</td><td class="num">${h.w[3]}</td>
       <td class="num"><b>${h.total}</b>${cap>0?` / ${cap}`:''}</td>
       <td><div class="bar ${cls}"><span style="width:${cap>0?Math.min(100,h.total/cap*100):0}%"></span></div></td>
+      ${offCell(RD.N[n.id])}
       <td>${tag}</td></tr>`;
   }).join('');
-  document.getElementById('nurseStats').innerHTML=head+(rows||emptyRow(9));
+  document.getElementById('nurseStats').innerHTML=headR+(rows||emptyRow(10));
   // 醫師
   const dcap=state.doctorMaxHours;
   rows=state.doctors.map(d=>{
@@ -689,17 +752,21 @@ function renderStats(){
   // 行政人員
   const acap=state.adminMaxHours;
   rows=(state.admins||[]).map(x=>{
-    const h=A[x.id], pct=acap>0?Math.min(100,h.total/acap*100):0;
-    const over=acap>0&&h.total>acap, near=acap>0&&!over&&h.total>=acap*0.9;
-    const cls=over?'over':near?'warn':'';
-    const tag=acap<=0?'<span class="tag ok">不限</span>':over?'<span class="tag over">超過</span>':near?'<span class="tag warn">接近上限</span>':'<span class="tag ok">正常</span>';
+    const h=A[x.id], t=h.total, pct=acap>0?Math.min(100,t/acap*100):0;
+    const overLegal=t>LEGAL_CAP_HOURS, overTarget=!overLegal&&acap>0&&t>acap;
+    const cls=overLegal?'over':overTarget?'warn':'';
+    const tag=overLegal?'<span class="tag over">超過法定160</span>'
+      :overTarget?`<span class="tag warn">超出目標（緩衝剩 ${LEGAL_CAP_HOURS-t}h）</span>`
+      :acap<=0?'<span class="tag ok">不設目標</span>'
+      :`<span class="tag ok">正常（緩衝 ${LEGAL_CAP_HOURS-t}h）</span>`;
     return `<tr><td><span class="codechip adm">${esc(x.code)}</span></td><td>${esc(x.name||'—')}</td>
       <td class="num">${h.w[0]}</td><td class="num">${h.w[1]}</td><td class="num">${h.w[2]}</td><td class="num">${h.w[3]}</td>
       <td class="num"><b>${h.total}</b>${acap>0?` / ${acap}`:''}</td>
       <td><div class="bar ${cls}"><span style="width:${acap>0?pct:Math.min(100,h.total/200*100)}%"></span></div></td>
+      ${offCell(RD.A[x.id])}
       <td>${tag}</td></tr>`;
   }).join('');
-  document.getElementById('adminStats').innerHTML=head+(rows||emptyRow(9));
+  document.getElementById('adminStats').innerHTML=headR+(rows||emptyRow(10));
 }
 const emptyRow=cols=>`<tr><td colspan="${cols}" class="empty">尚無資料</td></tr>`;
 
@@ -718,6 +785,9 @@ function fillOnce(){
   const mkDay=()=>{ const arr=[]; for(let w=0;w<WEEKS;w++) arr.push(DAYS.map(()=>({}))); return arr; };
   const nDay=mkDay(), aDay=mkDay();
   const ts=(map,w,di,id)=>(map[w][di][id]||(map[w][di][id]=new Set()));
+  // 四週變形工時：每人最多 20 個工作天（保留 8 天全休）。已上班的那天再加班不算新工作天。
+  const wdCount=(map,id)=>{ let c=0; for(let w=0;w<WEEKS;w++) for(let di=0;di<DAYS.length;di++){ const s=map[w][di][id]; if(s&&s.size) c++; } return c; };
+  const dayOK=(map,w,di,id)=>{ const s=map[w][di][id]; if(s&&s.size) return true; return wdCount(map,id)<MAX_WORK_DAYS; };
   const restOK=(map,w,di,sh,id)=>{
     if(state.restRule===false) return true;                                                       // 規則設定可關閉
     if(sh==='m' && di>0){ const p=map[w][di-1][id]; if(p&&p.has('e')) return false; }            // 昨天晚班 → 今天不排早
@@ -736,6 +806,7 @@ function fillOnce(){
       if(nh[n.id]+SHIFT_HOURS>state.nurseMaxHours) return false;
       if(doctorId && exSet.has(doctorId+'|'+n.id)) return false;
       if(!restOK(nDay,w,di,sh.key,n.id)) return false;
+      if(!dayOK(nDay,w,di,n.id)) return false;       // 4週最多20個工作天（法遵）
       return true;
     }).sort((x,y)=>{ const xp=(ts(nDay,w,di,x.id).size===1)?0:1, yp=(ts(nDay,w,di,y.id).size===1)?0:1; if(xp!==yp)return xp-yp; if(nh[x.id]!==nh[y.id])return nh[x.id]-nh[y.id]; return Math.random()-0.5; })[0]||null;  // 平均分配（先湊兩班、再給時數最少者）→ 工作量足夠時所有護理師一起升到160
   };
@@ -773,6 +844,7 @@ function fillOnce(){
       if(state.adminMaxHours>0 && ah[x.id]+SHIFT_HOURS>state.adminMaxHours) return false;
       if(!adminAllows(x,doctorId)) return false;
       if(!restOK(aDay,w,di,sh.key,x.id)) return false;
+      if(!dayOK(aDay,w,di,x.id)) return false;       // 4週最多20個工作天（法遵）
       return true;
     }).sort((p,q)=>{
       const pp=(ts(aDay,w,di,p.id).size===1)?0:1, qq=(ts(aDay,w,di,q.id).size===1)?0:1;
@@ -798,6 +870,7 @@ function fillOnce(){
           if(nh[n.id]+SHIFT_HOURS>state.nurseMaxHours) continue;
           if(exSet.has(a.doctorId+'|'+n.id)) continue;           // 不可同診
           if(!restOK(nDay,w,di,sh.key,n.id)) continue;           // 休息
+          if(!dayOK(nDay,w,di,n.id)) continue;                   // 4週最多20個工作天（法遵）
           if(a.adminId && !a.nurseId){                           // ① 從行政手上接
             ah[a.adminId]-=SHIFT_HOURS; a.adminId=null; a.nurseId=n.id;
             nh[n.id]+=SHIFT_HOURS; ts(nDay,w,di,n.id).add(sh.key); return true;
@@ -813,13 +886,27 @@ function fillOnce(){
   };
   state.nurses.forEach(n=>{ if(n.pt) return; let g=0; while(nh[n.id]<floor && g++<400 && topUpOnce(n)){} });
 
-  // ── 兼職護理師：全職＋行政都排不到的班，在其「可上時段」內補上（不受時數限制）──
+  // ── 兼職護理師：全職＋行政都排不到的班，在其「可上時段」內補上 ──
+  //    兼職不設 156–160 目標，但仍受法定規則：一天最多兩班、4週160小時上限、4週最多20個工作天。
   const pth={}; state.nurses.forEach(n=>{ if(n.pt) pth[n.id]=0; });
   const ptBusy=(id,w,dk,shk)=>['c1','c2','c3','t1'].some(p=>{ const a=getCell(w,dk,shk,p); return a&&a.nurseId===id; });
+  const ptShiftsOn=(id,w,dk)=>{ let c=0; shiftsForDay(dk).forEach(s=>{ if(ptBusy(id,w,dk,s.key)) c++; }); return c; };
+  const ptDays=(id)=>{ let c=0; for(let w2=0;w2<WEEKS;w2++) DAYS.forEach(d=>{ if(ptShiftsOn(id,w2,d.key)>0) c++; }); return c; };
+  const ptRestOK=(id,w,dk,shk)=>{
+    if(state.restRule===false) return true;
+    const di=DAYS.findIndex(d=>d.key===dk);
+    if(shk==='m'&&di>0 && ptBusy(id,w,DAYS[di-1].key,'e')) return false;
+    if(shk==='e'&&di<DAYS.length-1 && ptBusy(id,w,DAYS[di+1].key,'m')) return false;
+    return true;
+  };
   const pickPT=(w,dk,shk,doctorId)=> state.nurses.filter(n=>{
       if(!n.pt) return false;
       if(!(n.avail||[]).includes(dk+'|'+shk)) return false;          // 只在可上時段
       if(ptBusy(n.id,w,dk,shk)) return false;                        // 同一節不重複
+      if(ptShiftsOn(n.id,w,dk)>=2) return false;                     // 一天最多兩班（法遵）
+      if(pth[n.id]+SHIFT_HOURS>LEGAL_CAP_HOURS) return false;         // 4週160小時法定上限（兼職不受排班目標限制）
+      if(ptShiftsOn(n.id,w,dk)===0 && ptDays(n.id)>=MAX_WORK_DAYS) return false; // 20工作天上限（法遵）
+      if(!ptRestOK(n.id,w,dk,shk)) return false;                     // 避免晚接早
       if(doctorId && exSet.has(doctorId+'|'+n.id)) return false;     // 不可同診
       return true;
     }).sort((x,y)=>(pth[x.id]-pth[y.id])||(Math.random()-0.5))[0]||null;
@@ -859,7 +946,7 @@ function autoFill(){
   save(); renderGrid();
   if(bestGaps.length){
     alert(`自動排班完成，但有 ${bestGaps.length} 處無法排滿（治療室護理師 或 跟診行政）：\n\n`+bestGaps.slice(0,14).join('\n')+(bestGaps.length>14?`\n…等共 ${bestGaps.length} 處`:'')+
-      `\n\n可能原因：行政或護理師人數/時數不足、排休過多、或行政可跟診的醫師太少。`);
+      `\n\n可能原因：行政或護理師人數/時數不足、排休過多、行政可跟診的醫師太少、或已達法定上限（每人 4 週最多 20 個工作天／160 小時）。`);
   }
 }
 
