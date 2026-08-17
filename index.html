@@ -1221,8 +1221,8 @@ function bind(){
     const i=+e.target.closest('.excl-row').dataset.i;
     state.exclusions.splice(i,1); save(); renderRules(); refreshValidation();
   });
-  const numHandler=(id,fld)=>{ document.getElementById(id).addEventListener('input',e=>{ state[fld]=Math.max(0,parseInt(e.target.value||'0',10)); save(); refreshValidation(); }); };
-  numHandler('nurseMax','nurseMaxHours'); numHandler('doctorMax','doctorMaxHours'); numHandler('adminMax','adminMaxHours');
+  const numHandler=(id,fld,cap)=>{ document.getElementById(id).addEventListener('input',e=>{ let v=Math.max(0,parseInt(e.target.value||'0',10)); if(cap&&v>cap){ v=cap; e.target.value=cap; } state[fld]=v; save(); refreshValidation(); }); };
+  numHandler('nurseMax','nurseMaxHours',LEGAL_CAP_HOURS); numHandler('doctorMax','doctorMaxHours'); numHandler('adminMax','adminMaxHours',LEGAL_CAP_HOURS);
   document.getElementById('restRule').addEventListener('change',e=>{ state.restRule=e.target.checked; save(); refreshValidation(); });
   document.getElementById('startDate').addEventListener('change',e=>{ state.startDate=e.target.value; save(); renderGrid(); renderDaysOff(); renderPrintArea(); });
   // 排休：點格切換
