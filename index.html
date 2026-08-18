@@ -139,6 +139,13 @@
     #printArea td.pclosed{background:#cbd5e1;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     @page{size:landscape;margin:10mm}
   }
+.grid tr.holrow td{background:#fef2f2}
+.grid td.day.holiday{background:#fee2e2}
+.grid tr.holrow-am td{background:#fffbeb}
+.grid td.day.holiday-am{background:#fef3c7}
+.holbtn.am{background:#fef3c7;border-color:#b45309;color:#92400e;font-weight:700}
+.holbtn{display:inline-flex;align-items:center;justify-content:center;min-width:64px;padding:7px 6px;margin:3px;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;user-select:none;flex-direction:column;line-height:1.3}
+.holbtn.on{background:#fee2e2;border-color:#dc2626;color:#b91c1c;font-weight:700}
 </style>
 </head>
 <body>
@@ -246,6 +253,13 @@
         <label>週期起始日（週一）</label>
         <input type="date" id="startDate"> <span class="unit">選填，填了排班表會顯示日期</span>
       </div>
+      <div class="field" style="align-items:flex-start">
+        <label style="padding-top:10px">國定假日休診</label>
+        <div>
+          <div id="holidayGrid"></div>
+          <p class="hint" style="margin-top:6px">點選國定假日（如中秋、雙十），<b>每點一下循環切換</b>：正常 → <b>全天休診</b>（紅）→ <b>僅開早診</b>（黃）→ 正常。全天休診：排班表標紅、自動排班跳過、既有排班標紅提示清空。僅開早診：早診照常排班（自動排班會排），午/晚排班標紅；假日出勤者會列橘色提醒並累計<b>應補休時數</b>（時數統計頁「補休」欄）——本院採<b>補休制</b>：出勤幾小時補休幾小時，需經勞工同意並於約定期限內休畢；若未約定補休，依 §39 應加倍發給工資（即使只上半天仍應加給一日工資）。假日早診時數<b>照常計入 4 週總時數</b>與排班目標。⚖️ 國定假日（勞基法 §37）<b>不計入</b>「例假＋休息日 8 天」額度，因此每設 1 天假日，每人 4 週可工作天數上限就從 20 天再減 1 天，時數目標可能因此更難排滿——這是法規要求，不是系統錯誤。</p>
+        </div>
+      </div>
     </div>
     <div class="card">
       <h2>內建規則（自動套用、無法關閉）</h2>
@@ -281,7 +295,7 @@
     <div class="card">
       <h2>護理師時數（4 週合計，每人目標 <span id="floorLabel">148</span>～<span id="capLabel">152</span> 小時）</h2>
       <p class="hint">每位護理師以「排班目標」（規則設定，預設 152）為準：目標−4～目標 標綠（達標）、未滿標橘、<b>超過目標標橘（吃掉加班緩衝）、超過法定 160 標紅</b>。</p>
-      <p class="hint">⚖️ <b>法遵提醒</b>：160 小時＝四週變形工時的<b>法定正常工時上限</b>。排班目標設低於 160（預設 152）可保留臨時補班的緩衝；補班仍屬延長工時（應給加班費或補休、每月加班上限 46 小時、單日總工時含加班不得超過 12 小時），但總時數壓在 160 內可大幅降低超時風險。「全休日」欄位需 ≥ 8 天（週日休診固定 4 天＋週一～六至少 4 個整天不排班）。</p>
+      <p class="hint">⚖️ <b>法遵提醒</b>：160 小時＝四週變形工時的<b>法定正常工時上限</b>。排班目標設低於 160（預設 152）可保留臨時補班的緩衝；補班仍屬延長工時（應給加班費或補休、每月加班上限 46 小時、單日總工時含加班不得超過 12 小時），但總時數壓在 160 內可大幅降低超時風險。「全休日」欄位需 ≥ 8 天（週日休診固定 4 天＋週一～六至少 4 個整天不排班；國定假日與補休日<b>不計入</b>此額度）。「補休」欄＝國定假日出勤累計時數，應依約定安排補休；補休日請用「排休」標記，該日即不會被排班。</p>
       <p class="hint" id="nurseFeas" style="background:#f0fdfa;border:1px solid var(--brand-l);border-radius:8px;padding:9px 12px;color:#0f766e;margin-bottom:14px"></p>
       <table class="list" id="nurseStats"></table>
     </div>
@@ -381,6 +395,7 @@ function defaultState(){
     doctorMaxHours:0,
     adminMaxHours:152,
     startDate:'',
+    holidays:[],            // 國定假日休診：'w|dayKey' 陣列（如 '1|mon'）
     schedule:{}
   };
 }
@@ -419,6 +434,7 @@ function normalize(){
   if(!state.admins) state.admins=['1','2','3'].map(c=>({id:newId(),code:c,name:'',off:[],allowedDocs:[]}));
   if(state.adminMaxHours==null) state.adminMaxHours=152;
   if(state.nurseMaxHours==null) state.nurseMaxHours=152;
+  if(!Array.isArray(state.holidays)) state.holidays=[];
   if(state.restRule==null) state.restRule=true;
   state.nurses.forEach(n=>{ if(!n.off) n.off=[]; if(!n.avail) n.avail=[]; });
   state.admins.forEach(x=>{ if(!x.off) x.off=[]; if(!x.allowedDocs) x.allowedDocs=[]; });
@@ -439,6 +455,14 @@ function dateFor(w,dayIndex){
   d.setDate(d.getDate()+w*7+dayIndex);
   return (d.getMonth()+1)+'/'+d.getDate();
 }
+// 國定假日模式：'w|day'＝全天休診(full)、'w|day|m'＝僅開早診(am)。兩者都是 §37 國定假日，不計入例假/休息日額度。
+const holidayMode=(w,dayKey)=>{ const hs=state.holidays||[];
+  if(hs.includes(w+'|'+dayKey)) return 'full';
+  if(hs.includes(w+'|'+dayKey+'|m')) return 'am';
+  return null; };
+const isHoliday=(w,dayKey)=>holidayMode(w,dayKey)==='full';   // 全天休診
+const isHolidayDay=(w,dayKey)=>!!holidayMode(w,dayKey);        // 是國定假日（不論是否開早診）
+const holidaysPerBlock=()=>{ const b=[0,0]; (state.holidays||[]).forEach(h=>{ b[(+h.split('|')[0])<2?0:1]++; }); return b; };
 function eachSlot(cb){
   for(let w=0;w<WEEKS;w++)
     DAYS.forEach((day,di)=> shiftsForDay(day.key).forEach(sh=>
@@ -474,11 +498,14 @@ function renderGrid(){
   h+=`</tr></thead><tbody>`;
   DAYS.forEach((day,di)=>{
     const shs=shiftsForDay(day.key);
+    const hm=holidayMode(w,day.key);
     shs.forEach((sh,si)=>{
-      h+='<tr>';
+      h+=hm==='full'?'<tr class="holrow">':(hm==='am'&&sh.key!=='m')?'<tr class="holrow-am">':'<tr>';
       if(si===0){
         const dt=dateFor(w,di);
-        h+=`<td class="day" rowspan="${shs.length}">${day.label}${dt?`<span class="date">${dt}</span>`:''}</td>`;
+        const badge=hm==='full'?'<span class="date" style="color:#dc2626;font-weight:700">🎑 假日休診</span>'
+                   :hm==='am'?'<span class="date" style="color:#b45309;font-weight:700">🎑 假日·僅早診</span>':'';
+        h+=`<td class="day${hm==='full'?' holiday':hm==='am'?' holiday-am':''}" rowspan="${shs.length}">${day.label}${dt?`<span class="date">${dt}</span>`:''}${badge}</td>`;
       }
       // 時段欄與診間欄
       h+=`<td class="shift">${sh.label}<span class="tm">${sh.time}</span></td>`;
@@ -507,7 +534,34 @@ function computeIssues(){
   const addDay=(map,id,w,dayKey,sh,ck)=>{ const k=id+'|'+w+'|'+dayKey; const o=map[k]||(map[k]={shifts:new Set(),cells:{}}); o.shifts.add(sh); (o.cells[sh]=o.cells[sh]||[]).push(ck); };
   for(let w=0;w<WEEKS;w++){
     DAYS.forEach(day=>{
+      const holMode=holidayMode(w,day.key);
+      if(holMode==='full'){                           // 國定假日全天休診：任何排班都標紅
+        let flagged=false;
+        shiftsForDay(day.key).forEach(sh=> POSITIONS.forEach(pos=>{
+          const a=getCell(w,day.key,sh.key,pos.key)||{};
+          if(a.doctorId||a.nurseId||a.adminId){ errorCells.add(ckOf(w,day.key,sh.key,pos.key)); flagged=true; }
+        }));
+        if(flagged) messages.push({type:'error',text:`${weekLabel(w)} ${day.label}：國定假日全天休診，仍有排班（請清空該日，或到規則設定改為「僅開早診」）`});
+        return;
+      }
+      if(holMode==='am'){                             // 僅開早診：午/晚有「人員」標紅；只掛醫師僅橘色提醒；早診出勤者提醒加倍工資
+        let docLeft=false;
+        shiftsForDay(day.key).forEach(sh=>{ if(sh.key==='m') return;
+          POSITIONS.forEach(pos=>{
+            const a=getCell(w,day.key,sh.key,pos.key)||{};
+            if(a.nurseId||a.adminId){ errorCells.add(ckOf(w,day.key,sh.key,pos.key));
+              messages.push({type:'error',text:`${weekLabel(w)} ${day.label}${sh.label}：國定假日僅開早診，${sh.label}不應排人員`}); }
+            else if(a.doctorId) docLeft=true;
+          });
+        });
+        if(docLeft) messages.push({type:'warn',text:`${weekLabel(w)} ${day.label}：假日僅開早診，午/晚仍掛有醫師（不會排助手；列印前建議清空以免誤導）`});
+        const workers=new Set();
+        POSITIONS.forEach(pos=>{ const a=getCell(w,day.key,'m',pos.key)||{};
+          [a.nurseId,a.adminId].forEach(id=>{ if(id) workers.add(codeOf(id)); }); });
+        if(workers.size) messages.push({type:'warn',text:`${weekLabel(w)} ${day.label}早診：國定假日出勤（${[...workers].join('、')}），依約定給補休 ${SHIFT_HOURS} 小時／人（需經勞工同意、於約定期限內休畢；未約定補休者應依 §39 加倍發給工資）`});
+      }
       shiftsForDay(day.key).forEach(sh=>{
+        if(holMode==='am' && sh.key!=='m') return;     // 僅早診的午/晚已於上方處理
         const docMap={}, nurMap={}, admMap={};
         const shiftActive=['c1','c2','c3'].some(pk=>{ const a=getCell(w,day.key,sh.key,pk); return a&&a.doctorId; });
         POSITIONS.forEach(pos=>{
@@ -648,6 +702,7 @@ function computeRestDays(){
   const N=mk(state.nurses), A=mk(state.admins||[]);
   const seen=new Set();
   eachSlot((w,day,di,sh,pos)=>{
+    if(isHolidayDay(w,day.key)) return;               // 國定假日：不計工作天也不計休假額度（§37 假日出勤另計加倍工資）
     const a=getCell(w,day.key,sh.key,pos.key); if(!a) return;
     const blk=w<2?0:1;
     [[a.nurseId,N],[a.adminId,A]].forEach(([id,M])=>{
@@ -655,9 +710,11 @@ function computeRestDays(){
         if(!seen.has(k)){ seen.add(k); M[id].workedDays++; M[id].blockWorked[blk]++; } }
     });
   });
+  // 國定假日（§37）是「例假/休息日」以外的假別，不能拿來抵 8 天休假額度 → 從全休日計算中扣除
+  const hb=holidaysPerBlock();
   const fin=M=>Object.values(M).forEach(o=>{
-    o.offTotal=28-o.workedDays;                       // 含4個週日
-    o.blockOff=[14-o.blockWorked[0],14-o.blockWorked[1]]; // 各含2個週日
+    o.offTotal=28-o.workedDays-hb[0]-hb[1];           // 含4個週日、扣除國定假日
+    o.blockOff=[14-o.blockWorked[0]-hb[0],14-o.blockWorked[1]-hb[1]]; // 各含2個週日
   });
   fin(N); fin(A);
   return {N,A};
@@ -665,13 +722,14 @@ function computeRestDays(){
 
 /* ---------------- 時數 ---------------- */
 function computeHoursDetailed(){
-  const mk=arr=>{const m={};arr.forEach(s=>m[s.id]={w:[0,0,0,0],total:0});return m;};
+  const mk=arr=>{const m={};arr.forEach(s=>m[s.id]={w:[0,0,0,0],total:0,hol:0});return m;};
   const N=mk(state.nurses), D=mk(state.doctors), A=mk(state.admins||[]);
   eachSlot((w,day,di,sh,pos)=>{
     const a=getCell(w,day.key,sh.key,pos.key); if(!a) return;
+    const hol=isHolidayDay(w,day.key);   // 假日出勤（僅早診）：時數照計入總時數，另累計應補休時數
     if(a.doctorId&&D[a.doctorId]){ D[a.doctorId].w[w]+=SHIFT_HOURS; D[a.doctorId].total+=SHIFT_HOURS; }
-    if(a.nurseId&&N[a.nurseId]){ N[a.nurseId].w[w]+=SHIFT_HOURS; N[a.nurseId].total+=SHIFT_HOURS; }
-    if(a.adminId&&A[a.adminId]){ A[a.adminId].w[w]+=SHIFT_HOURS; A[a.adminId].total+=SHIFT_HOURS; }
+    if(a.nurseId&&N[a.nurseId]){ N[a.nurseId].w[w]+=SHIFT_HOURS; N[a.nurseId].total+=SHIFT_HOURS; if(hol) N[a.nurseId].hol+=SHIFT_HOURS; }
+    if(a.adminId&&A[a.adminId]){ A[a.adminId].w[w]+=SHIFT_HOURS; A[a.adminId].total+=SHIFT_HOURS; if(hol) A[a.adminId].hol+=SHIFT_HOURS; }
   });
   return {N,D,A};
 }
@@ -682,10 +740,11 @@ function renderStats(){
   document.getElementById('adminCapLabel').textContent=state.adminMaxHours;
   // 依目前開診量，計算最多可讓幾位護理師排滿（治療室每節1 + 有醫師的診間）
   let openClinicCells=0, activeShifts=0;
-  for(let w=0;w<WEEKS;w++) DAYS.forEach(day=> shiftsForDay(day.key).forEach(sh=>{
+  for(let w=0;w<WEEKS;w++) DAYS.forEach(day=>{ const hm=holidayMode(w,day.key); if(hm==='full') return; shiftsForDay(day.key).forEach(sh=>{
+    if(hm==='am'&&sh.key!=='m') return;
     const open=['c1','c2','c3'].filter(pk=>{ const a=getCell(w,day.key,sh.key,pk); return a&&a.doctorId; }).length;
     if(open>0){ activeShifts++; openClinicCells+=open; }
-  }));
+  }); });
   const totalWork=(activeShifts+openClinicCells)*SHIFT_HOURS, cap=state.nurseMaxHours||160, fl=Math.max(SHIFT_HOURS,cap-SHIFT_HOURS);
   let nurseTotal=0; state.nurses.forEach(n=>{ if(!n.pt) nurseTotal+=N[n.id].total; });
   const m=state.nurses.filter(n=>!n.pt).length;   // 只算正職
@@ -706,7 +765,8 @@ function renderStats(){
   const offCell=o=>{ const v=o?o.offTotal:28; const bad=v<MIN_OFF_DAYS;
     return `<td class="num" style="font-weight:700;color:${bad?'var(--err)':'var(--ok)'}">${v}/${MIN_OFF_DAYS}${bad?' ✕':''}</td>`; };
   const head=`<tr><th>代號</th><th>姓名</th><th class="num">週1</th><th class="num">週2</th><th class="num">週3</th><th class="num">週4</th><th class="num">合計</th><th style="width:160px">使用率</th><th>狀態</th></tr>`;
-  const headR=head.replace('<th>狀態</th>','<th class="num" title="4週內例假＋休息日，含週日，法定至少8天">全休日</th><th>狀態</th>');
+  const headR=head.replace('<th>狀態</th>','<th class="num" title="4週內例假＋休息日，含週日，法定至少8天">全休日</th><th class="num" title="國定假日出勤累計，應依約定給補休（時數已計入合計）">補休</th><th>狀態</th>');
+  const holCell=h=>h.hol>0?`<td class="num" style="color:#b45309;font-weight:700">${h.hol}h</td>`:'<td class="num" style="color:#cbd5e1">—</td>';
   // 護理師（目標每人 156–160 小時：達標綠、未滿156橘、超過160紅）
   let rows=state.nurses.map(n=>{
     const h=N[n.id], cap=state.nurseMaxHours, floor=Math.max(0,cap-SHIFT_HOURS);
@@ -716,6 +776,7 @@ function renderStats(){
         <td class="num"><b>${h.total}</b> / ${LEGAL_CAP_HOURS}</td>
         <td style="color:var(--muted);font-size:12px">補全職缺班</td>
         ${offCell(RD.N[n.id])}
+        ${holCell(h)}
         <td><span class="tag" style="background:#ecfeff;color:var(--adm)">兼職·不設目標</span></td></tr>`;
     }
     const t=h.total;
@@ -732,9 +793,10 @@ function renderStats(){
       <td class="num"><b>${h.total}</b>${cap>0?` / ${cap}`:''}</td>
       <td><div class="bar ${cls}"><span style="width:${cap>0?Math.min(100,h.total/cap*100):0}%"></span></div></td>
       ${offCell(RD.N[n.id])}
+      ${holCell(h)}
       <td>${tag}</td></tr>`;
   }).join('');
-  document.getElementById('nurseStats').innerHTML=headR+(rows||emptyRow(10));
+  document.getElementById('nurseStats').innerHTML=headR+(rows||emptyRow(11));
   // 醫師
   const dcap=state.doctorMaxHours;
   rows=state.doctors.map(d=>{
@@ -764,9 +826,10 @@ function renderStats(){
       <td class="num"><b>${h.total}</b>${acap>0?` / ${acap}`:''}</td>
       <td><div class="bar ${cls}"><span style="width:${acap>0?pct:Math.min(100,h.total/200*100)}%"></span></div></td>
       ${offCell(RD.A[x.id])}
+      ${holCell(h)}
       <td>${tag}</td></tr>`;
   }).join('');
-  document.getElementById('adminStats').innerHTML=headR+(rows||emptyRow(10));
+  document.getElementById('adminStats').innerHTML=headR+(rows||emptyRow(11));
 }
 const emptyRow=cols=>`<tr><td colspan="${cols}" class="empty">尚無資料</td></tr>`;
 
@@ -786,8 +849,13 @@ function fillOnce(){
   const nDay=mkDay(), aDay=mkDay();
   const ts=(map,w,di,id)=>(map[w][di][id]||(map[w][di][id]=new Set()));
   // 四週變形工時：每人最多 20 個工作天（保留 8 天全休）。已上班的那天再加班不算新工作天。
-  const wdCount=(map,id)=>{ let c=0; for(let w=0;w<WEEKS;w++) for(let di=0;di<DAYS.length;di++){ const s=map[w][di][id]; if(s&&s.size) c++; } return c; };
-  const dayOK=(map,w,di,id)=>{ const s=map[w][di][id]; if(s&&s.size) return true; return wdCount(map,id)<MAX_WORK_DAYS; };
+  const wdCountNormal=(map,id)=>{ let c=0; for(let w=0;w<WEEKS;w++) for(let di=0;di<DAYS.length;di++){ if(isHolidayDay(w,DAYS[di].key)) continue; const s=map[w][di][id]; if(s&&s.size) c++; } return c; };
+  // 上限＝20 −國定假日天數（假日不能抵例假/休息日，可工作天相應減少；含「僅開早診」的假日）
+  const maxWD=MAX_WORK_DAYS-(state.holidays||[]).length;
+  const dayOK=(map,w,di,id)=>{
+    if(isHolidayDay(w,DAYS[di].key)) return true;      // 假日早診出勤屬§37假日出勤，不占正常工作天額度
+    const s=map[w][di][id]; if(s&&s.size) return true;
+    return wdCountNormal(map,id)<maxWD; };
   const restOK=(map,w,di,sh,id)=>{
     if(state.restRule===false) return true;                                                       // 規則設定可關閉
     if(sh==='m' && di>0){ const p=map[w][di-1][id]; if(p&&p.has('e')) return false; }            // 昨天晚班 → 今天不排早
@@ -795,7 +863,9 @@ function fillOnce(){
     return true;
   };
   const slots=[]; // 依序的每一節
-  for(let w=0;w<WEEKS;w++) DAYS.forEach((day,di)=> shiftsForDay(day.key).forEach(sh=> slots.push({w,di,day,sh})));
+  for(let w=0;w<WEEKS;w++) DAYS.forEach((day,di)=>{ const hm=holidayMode(w,day.key);
+    if(hm==='full') return;
+    shiftsForDay(day.key).forEach(sh=>{ if(hm==='am'&&sh.key!=='m') return; slots.push({w,di,day,sh}); }); });
 
   // 護理師挑選（doctorId 為 null＝治療室，不檢查不可同診）
   const pickNurse=(w,di,day,sh,doctorId)=>{
@@ -860,7 +930,8 @@ function fillOnce(){
   const floor=Math.max(0,state.nurseMaxHours-SHIFT_HOURS);
   const topUpOnce=(n)=>{
     for(let w=0;w<WEEKS;w++) for(let di=0;di<DAYS.length;di++){
-      const day=DAYS[di], shs=shiftsForDay(day.key);
+      const day=DAYS[di]; const hm=holidayMode(w,day.key); if(hm==='full') continue;
+      const shs=shiftsForDay(day.key).filter(sh=>hm!=='am'||sh.key==='m');
       for(let si=0;si<shs.length;si++){ const sh=shs[si];
         for(const pk of ['c1','c2','c3']){
           const a=getCell(w,day.key,sh.key,pk);
@@ -891,7 +962,7 @@ function fillOnce(){
   const pth={}; state.nurses.forEach(n=>{ if(n.pt) pth[n.id]=0; });
   const ptBusy=(id,w,dk,shk)=>['c1','c2','c3','t1'].some(p=>{ const a=getCell(w,dk,shk,p); return a&&a.nurseId===id; });
   const ptShiftsOn=(id,w,dk)=>{ let c=0; shiftsForDay(dk).forEach(s=>{ if(ptBusy(id,w,dk,s.key)) c++; }); return c; };
-  const ptDays=(id)=>{ let c=0; for(let w2=0;w2<WEEKS;w2++) DAYS.forEach(d=>{ if(ptShiftsOn(id,w2,d.key)>0) c++; }); return c; };
+  const ptDays=(id)=>{ let c=0; for(let w2=0;w2<WEEKS;w2++) DAYS.forEach(d=>{ if(!isHolidayDay(w2,d.key)&&ptShiftsOn(id,w2,d.key)>0) c++; }); return c; };
   const ptRestOK=(id,w,dk,shk)=>{
     if(state.restRule===false) return true;
     const di=DAYS.findIndex(d=>d.key===dk);
@@ -905,7 +976,7 @@ function fillOnce(){
       if(ptBusy(n.id,w,dk,shk)) return false;                        // 同一節不重複
       if(ptShiftsOn(n.id,w,dk)>=2) return false;                     // 一天最多兩班（法遵）
       if(pth[n.id]+SHIFT_HOURS>LEGAL_CAP_HOURS) return false;         // 4週160小時法定上限（兼職不受排班目標限制）
-      if(ptShiftsOn(n.id,w,dk)===0 && ptDays(n.id)>=MAX_WORK_DAYS) return false; // 20工作天上限（法遵）
+      if(ptShiftsOn(n.id,w,dk)===0 && ptDays(n.id)>=MAX_WORK_DAYS-(state.holidays||[]).length) return false; // 工作天上限（法遵，扣除假日）
       if(!ptRestOK(n.id,w,dk,shk)) return false;                     // 避免晚接早
       if(doctorId && exSet.has(doctorId+'|'+n.id)) return false;     // 不可同診
       return true;
@@ -1020,7 +1091,7 @@ function renderPrintArea(){
       const shs=shiftsForDay(day.key);
       shs.forEach((sh,si)=>{
         h+='<tr>';
-        if(si===0) h+=`<td rowspan="${shs.length}"><b>${day.label}</b>${state.startDate?`<br><span class="pd">${dateFor(w,di)}</span>`:''}</td>`;
+        if(si===0) h+=`<td rowspan="${shs.length}"><b>${day.label}</b>${state.startDate?`<br><span class="pd">${dateFor(w,di)}</span>`:''}${holidayMode(w,day.key)==='full'?'<br><span class="pd" style="color:#dc2626;font-weight:700">假日休診</span>':holidayMode(w,day.key)==='am'?'<br><span class="pd" style="color:#b45309;font-weight:700">假日僅早診</span>':''}</td>`;
         h+=`<td>${sh.label}<br><span class="pd">${sh.time}</span></td>`;
         POSITIONS.forEach(pos=>{ const a=getCell(w,day.key,sh.key,pos.key); const closed=pos.type==='clinic'&&!(a&&a.doctorId); h+=`<td class="${closed?'pclosed':''}">${cellText(a,pos.type)}</td>`; });
         h+='</tr>';
@@ -1065,6 +1136,21 @@ function importBackup(file){
 }
 
 /* ---------------- 排休表 ---------------- */
+function renderHolidays(){
+  const host=document.getElementById('holidayGrid'); if(!host) return;
+  let h='';
+  for(let w=0;w<WEEKS;w++){
+    h+=`<div style="margin-bottom:2px"><span style="display:inline-block;width:44px;font-size:12px;color:#64748b;font-weight:700">${weekLabel(w)}</span>`;
+    DAYS.forEach((day,di)=>{
+      const hm=holidayMode(w,day.key), dt=dateFor(w,di);
+      const cls=hm==='full'?' on':hm==='am'?' am':'';
+      const sub=hm==='full'?'全休':hm==='am'?'僅早診':(dt||'');
+      h+=`<span class="holbtn${cls}" data-hw="${w}" data-hd="${day.key}">${day.label}${dt&&hm?`<span style="font-size:11px">${dt}</span>`:''}<span style="font-size:11px;color:${hm==='full'?'#b91c1c':hm==='am'?'#92400e':'#94a3b8'}">${sub}</span></span>`;
+    });
+    h+='</div>';
+  }
+  host.innerHTML=h;
+}
 function renderDaysOff(){
   const host=document.getElementById('dayoffHost'); if(!host) return;
   const people=[...state.nurses.filter(n=>!n.pt).map(p=>({p,role:'nur'})), ...(state.admins||[]).map(p=>({p,role:'adm'}))];
@@ -1122,7 +1208,7 @@ function copyDoctorsToAllWeeks(){
 
 /* ---------------- 整體渲染 ---------------- */
 function renderAll(){
-  renderWkTabs(); renderGrid(); renderStaff(); renderRules(); renderDaysOff(); renderAvail();
+  renderWkTabs(); renderGrid(); renderStaff(); renderRules(); renderDaysOff(); renderAvail(); renderHolidays();
   document.getElementById('dataInfo').textContent=
     `目前：醫師 ${state.doctors.length} 位、護理師 ${state.nurses.length} 位、行政 ${(state.admins||[]).length} 位、不可同診規則 ${state.exclusions.length} 條。`;
 }
@@ -1221,10 +1307,20 @@ function bind(){
     const i=+e.target.closest('.excl-row').dataset.i;
     state.exclusions.splice(i,1); save(); renderRules(); refreshValidation();
   });
-  const numHandler=(id,fld,cap)=>{ document.getElementById(id).addEventListener('input',e=>{ let v=Math.max(0,parseInt(e.target.value||'0',10)); if(cap&&v>cap){ v=cap; e.target.value=cap; } state[fld]=v; save(); refreshValidation(); }); };
-  numHandler('nurseMax','nurseMaxHours',LEGAL_CAP_HOURS); numHandler('doctorMax','doctorMaxHours'); numHandler('adminMax','adminMaxHours',LEGAL_CAP_HOURS);
+  const numHandler=(id,fld)=>{ document.getElementById(id).addEventListener('input',e=>{ state[fld]=Math.max(0,parseInt(e.target.value||'0',10)); save(); refreshValidation(); }); };
+  numHandler('nurseMax','nurseMaxHours'); numHandler('doctorMax','doctorMaxHours'); numHandler('adminMax','adminMaxHours');
   document.getElementById('restRule').addEventListener('change',e=>{ state.restRule=e.target.checked; save(); refreshValidation(); });
-  document.getElementById('startDate').addEventListener('change',e=>{ state.startDate=e.target.value; save(); renderGrid(); renderDaysOff(); renderPrintArea(); });
+  document.getElementById('holidayGrid').addEventListener('click',e=>{
+    const b=e.target.closest('.holbtn'); if(!b) return;
+    const kFull=b.dataset.hw+'|'+b.dataset.hd, kAm=kFull+'|m';
+    const hs=(state.holidays=state.holidays||[]);
+    // 三段循環：正常 → 全天休診 → 僅開早診 → 正常
+    if(hs.includes(kFull)){ hs.splice(hs.indexOf(kFull),1); hs.push(kAm); }
+    else if(hs.includes(kAm)){ hs.splice(hs.indexOf(kAm),1); }
+    else hs.push(kFull);
+    save(); renderHolidays(); renderGrid(); renderPrintArea();
+  });
+  document.getElementById('startDate').addEventListener('change',e=>{ state.startDate=e.target.value; save(); renderGrid(); renderDaysOff(); renderHolidays(); renderPrintArea(); });
   // 排休：點格切換
   document.getElementById('dayoffHost').addEventListener('click',e=>{
     const b=e.target.closest('.off-btn'); if(!b) return;
